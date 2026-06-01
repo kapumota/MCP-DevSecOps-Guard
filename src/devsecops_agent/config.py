@@ -17,6 +17,7 @@ MAX_TIMEOUT_SECONDS: Final[int] = 900
 ALLOWED_MAKE_TARGETS: Final[frozenset[str]] = frozenset(
     {
         "unit",
+        "unit-sandbox",
         "lint",
         "type-check",
         "coverage",

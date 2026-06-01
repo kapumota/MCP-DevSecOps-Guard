@@ -80,13 +80,17 @@ sandbox-image:
 
 sandbox-smoke: sandbox-image prepare-dirs
 	@echo ">> Verificando ejecución MCP dentro del sandbox Docker"
-	@SKILLCHAIN_SANDBOX_MODE=docker SKILLCHAIN_POLICY_MODE=demo POLICY_MODE=demo SKILLCHAIN_MCP_ROLE=ci_runner python -c "from devsecops_agent.commands import run_make_target; result = run_make_target('unit', 180); print(result['sandbox_mode']); raise SystemExit(result['returncode'])"
+	@SKILLCHAIN_SANDBOX_MODE=docker SKILLCHAIN_POLICY_MODE=demo POLICY_MODE=demo SKILLCHAIN_MCP_ROLE=ci_runner python -c "from devsecops_agent.commands import run_make_target; result = run_make_target('unit-sandbox', 180); print(result['sandbox_mode']); print(result.get('stdout_tail', '')); print(result.get('stderr_tail', '')); raise SystemExit(result['returncode'])"
 
 # Pruebas unitarias (nivel código)
 
 unit: venv
 	@echo ">> Ejecutando pruebas unitarias con pytest"
 	$(PY) -m pytest -q
+
+unit-sandbox:
+	@echo ">> Ejecutando pruebas unitarias dentro del sandbox Docker sin crear venv"
+	python -m pytest -q
 
 lint: venv
 	@echo ">> Ejecutando lint con ruff"
