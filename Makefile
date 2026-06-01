@@ -74,17 +74,13 @@ build:
 	@echo ">> Construyendo imagen Docker $(IMAGE)"
 	docker build -t $(IMAGE) -f docker/Dockerfile .
 
-package-build:
-	@echo ">> Construyendo paquete Python distribuible"
-	$(PY) -m build
-
 sandbox-image:
 	@echo ">> Construyendo imagen de sandbox MCP skillchain-sandbox:dev"
 	docker build -t skillchain-sandbox:dev -f docker/sandbox.Dockerfile .
 
 sandbox-smoke: sandbox-image prepare-dirs
 	@echo ">> Verificando ejecución MCP dentro del sandbox Docker"
-	@SKILLCHAIN_SANDBOX_MODE=docker SKILLCHAIN_POLICY_MODE=demo POLICY_MODE=demo SKILLCHAIN_MCP_ROLE=ci_runner $(PY) -c "from devsecops_agent.commands import run_make_target; result = run_make_target('unit', 180); print(result['sandbox_mode']); raise SystemExit(result['returncode'])"
+	@SKILLCHAIN_SANDBOX_MODE=docker SKILLCHAIN_POLICY_MODE=demo POLICY_MODE=demo SKILLCHAIN_MCP_ROLE=ci_runner python -c "from devsecops_agent.commands import run_make_target; result = run_make_target('unit', 180); print(result['sandbox_mode']); raise SystemExit(result['returncode'])"
 
 # Pruebas unitarias (nivel código)
 

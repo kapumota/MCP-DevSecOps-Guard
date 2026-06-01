@@ -42,7 +42,7 @@ jobs:
       - name: Configurar Go para herramientas externas
         uses: actions/setup-go@v5
         with:
-          go-version: "1.22"
+          go-version: "1.25.x"
 
       - name: Instalar dependencias Python
         run: |
@@ -65,7 +65,7 @@ jobs:
 
       - name: Instalar Gitleaks y OpenSSF Scorecard
         run: |
-          go install github.com/gitleaks/gitleaks/v8@latest
+          go install github.com/zricethezav/gitleaks/v8@v8.30.1
           go install github.com/ossf/scorecard/v5@latest
           echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
 
@@ -93,9 +93,10 @@ jobs:
           skillchain --help >/dev/null
 
       - name: Verificar evidence pack
-        if: always()
+        if: success()
         run: |
           latest_pack=$(ls -t artifacts/evidence-pack-*.tar.gz | head -n 1)
+          test -n "$latest_pack"
           skillchain evidence verify "$latest_pack" --manifest artifacts/evidence-manifest.json
 
       - name: Subir evidencia y dashboard
