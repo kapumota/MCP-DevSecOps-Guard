@@ -1,0 +1,123 @@
+{
+  "schema_version": "1.1.0",
+  "deny_by_default": true,
+  "default_role": "auditor_readonly",
+  "roles": {
+    "auditor_readonly": {
+      "description": "Rol de solo lectura para inspeccionar evidencias ya generadas sin ejecutar targets ni regenerar artifacts.",
+      "tools": {
+        "list_devsecops_artifacts": {
+          "allowed": true
+        },
+        "allowed_devsecops_targets": {
+          "allowed": true
+        },
+        "summarize_findings": {
+          "allowed": true
+        },
+        "evaluate_policy_gate": {
+          "allowed": true
+        },
+        "audit_mcp_server": {
+          "allowed": true
+        }
+      }
+    },
+    "auditor_operator": {
+      "description": "Rol operativo controlado para demo local: puede regenerar reportes livianos y ejecutar targets no destructivos.",
+      "tools": {
+        "list_devsecops_artifacts": {
+          "allowed": true
+        },
+        "allowed_devsecops_targets": {
+          "allowed": true
+        },
+        "summarize_findings": {
+          "allowed": true
+        },
+        "scan_agent_skills": {
+          "allowed": true
+        },
+        "audit_mcp_server": {
+          "allowed": true
+        },
+        "evaluate_policy_gate": {
+          "allowed": true
+        },
+        "run_adversarial_evaluation": {
+          "allowed": true
+        },
+        "generate_product_dashboard": {
+          "allowed": true
+        },
+        "create_evidence_archive": {
+          "allowed": true
+        },
+        "run_devsecops_check": {
+          "allowed_targets": [
+            "unit",
+            "lint",
+            "skills-validate",
+            "skill-scan",
+            "mcp-audit",
+            "agent-eval",
+            "benchmark",
+            "policy-check",
+            "product-status",
+            "product-scan",
+            "dashboard",
+            "local-evidence",
+            "demo-local"
+          ]
+        }
+      }
+    },
+    "ci_runner": {
+      "description": "Rol de CI/release: puede ejecutar el pipeline completo de seguridad y generación de evidencia.",
+      "tools": {
+        "run_devsecops_check": {
+          "allowed_targets": [
+            "unit",
+            "lint",
+            "type-check",
+            "coverage",
+            "integration-tests",
+            "package-build",
+            "build",
+            "skills-validate",
+            "skill-scan",
+            "mcp-audit",
+            "agent-eval",
+            "benchmark",
+            "sast",
+            "sca",
+            "secret-scan",
+            "sbom",
+            "scan-image",
+            "openssf-scorecard",
+            "policy-check",
+            "evidence-pack",
+            "evidence-verify",
+            "dashboard",
+            "product-status",
+            "security-ci",
+            "release-verify",
+            "sandbox-image",
+            "sandbox-smoke"
+          ]
+        },
+        "*": {
+          "allowed": true
+        }
+      }
+    },
+    "admin": {
+      "description": "Rol administrativo para mantenimiento local controlado.",
+      "tools": {
+        "*": {
+          "allowed": true
+        }
+      }
+    }
+  }
+}

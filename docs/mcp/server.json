@@ -1,0 +1,14 @@
+{
+  "mcpServers": {
+    "skillchain-mcp-guard": {
+      "command": "python",
+      "args": [
+        "-m",
+        "devsecops_agent.mcp_server"
+      ],
+      "env": {
+        "DEVSECOPS_REPO_ROOT": "."
+      }
+    }
+  }
+}

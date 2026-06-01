@@ -1,0 +1,12 @@
+# Archivos y carpetas a excluir del contexto (cachés, metadatos, evidencias y variables locales .env)
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.swp
+*.DS_Store
+.github
+.evidence
+artifacts
+.kind-cache
+.env

@@ -1,0 +1,15 @@
+{
+  "_comment": "Layout mínimo in-toto: el paso 'build' debe producir artefactos en artifacts/** (pipeline local-first DevSecOps).",
+  "_type": "layout",
+  "steps": [
+    {
+      "name": "build",
+      "expected_materials": [],
+      "expected_products": [
+        {
+          "pattern": "artifacts/**"
+        }
+      ]
+    }
+  ]
+}

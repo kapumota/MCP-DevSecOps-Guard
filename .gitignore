@@ -1,0 +1,42 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Virtual environments
+.venv/
+.mcp/
+env/
+venv/
+
+# Build/package
+build/
+dist/
+*.egg-info/
+
+# Local evidence outputs
+artifacts/*
+!artifacts/.gitkeep
+
+.evidence/*
+!.evidence/.gitkeep
+
+# Logs
+*.log
+
+# OS/editor
+.DS_Store
+.vscode/
+.idea/
+
+# Temporary archives and terminal captures
+*.zip
+*.tar.gz
+*.cast
+# Caches y salidas locales que no deben entrar al release
+*.pyc
+.skillchain/

@@ -1,0 +1,27 @@
+# Docker Compose para levantar el microservicio python-microservice localmente con healthcheck en /health.
+# Perfil endurecido: usuario no root, privilegios mínimos, filesystem read-only y tmpfs efímero.
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    environment:
+      - SERVICE_NAME=python-microservice
+      - PORT=8000
+    ports:
+      - "8000:8000"
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    pids_limit: 256
+    mem_limit: 512m
+    healthcheck:
+      test: ["CMD", "python", "-c", "import http.client; c=http.client.HTTPConnection('127.0.0.1',8000,timeout=2); c.request('GET','/health'); r=c.getresponse(); exit(0 if r.status==200 else 1)"]
+      interval: 10s
+      timeout: 2s
+      retries: 5
+      start_period: 5s

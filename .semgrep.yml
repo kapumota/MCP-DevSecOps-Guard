@@ -1,0 +1,8 @@
+rules:
+  - id: no-eval-exec
+    pattern-either:
+      - pattern: eval(...)
+      - pattern: exec(...)
+    message: "Evitar eval/exec"
+    severity: ERROR
+    languages: [python]

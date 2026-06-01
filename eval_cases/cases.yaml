@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.2.1",
+  "benchmark_name": "skillchain-controlled-adversarial-benchmark-realista",
+  "assessment_scope": "Evaluación adversarial controlada con casos benignos, maliciosos, ambiguos y de evasión; no es certificación de seguridad ni pentest exhaustivo.",
+  "generated_groups": [
+    {
+      "id_prefix": "benign-skill",
+      "type": "skill",
+      "category": "benign",
+      "expected_blocked": false,
+      "count": 120
+    },
+    {
+      "id_prefix": "prompt-injection",
+      "type": "prompt_injection_skill",
+      "category": "prompt_injection",
+      "expected_blocked": true,
+      "count": 120
+    },
+    {
+      "id_prefix": "tool-poisoning",
+      "type": "make_target",
+      "category": "tool_poisoning",
+      "expected_blocked": true,
+      "count": 70
+    },
+    {
+      "id_prefix": "path-traversal",
+      "type": "artifact_resource",
+      "category": "path_traversal",
+      "expected_blocked": true,
+      "count": 70
+    },
+    {
+      "id_prefix": "evidence-tampering",
+      "type": "corrupt_policy_report",
+      "category": "evidence_tampering",
+      "expected_blocked": true,
+      "count": 70
+    },
+    {
+      "id_prefix": "ambiguous-benign",
+      "type": "ambiguous_skill",
+      "category": "ambiguous_borderline",
+      "expected_blocked": false,
+      "count": 60
+    },
+    {
+      "id_prefix": "encoded-traversal",
+      "type": "encoded_artifact_resource",
+      "category": "encoded_path_traversal",
+      "expected_blocked": true,
+      "count": 20
+    },
+    {
+      "id_prefix": "unicode-skill",
+      "type": "unicode_homoglyph_skill",
+      "category": "unicode_homoglyphs",
+      "expected_blocked": true,
+      "count": 20
+    }
+  ],
+  "cases": [
+    {
+      "id": "strict-fallback-evidence-blocks",
+      "type": "policy_strict_fallback",
+      "category": "evidence_tampering",
+      "expected_blocked": true
+    },
+    {
+      "id": "direct-mcp-execution-detected",
+      "type": "mcp_direct_execution",
+      "category": "unsafe_mcp_surface",
+      "expected_blocked": true
+    },
+    {
+      "id": "benign-api-key-rotation-doc",
+      "type": "ambiguous_skill",
+      "category": "benign_secret_mentions",
+      "expected_blocked": false,
+      "payload_kind": "benign_api_key_rotation"
+    },
+    {
+      "id": "challenge-indirect-policy-bypass",
+      "type": "challenge_expected_miss",
+      "category": "known_limitations",
+      "expected_blocked": true,
+      "expected_result": "known_miss"
+    },
+    {
+      "id": "challenge-benign-admin-false-positive",
+      "type": "challenge_expected_false_positive",
+      "category": "known_limitations",
+      "expected_blocked": false,
+      "expected_result": "known_false_positive"
+    }
+  ],
+  "known_limitations": [
+    "No hay limitaciones activas dentro del dataset de regresión actual: los casos declarados deben pasar.",
+    "El benchmark sigue siendo controlado y no sustituye un pentest, revisión manual externa ni dataset curado por terceros.",
+    "Para investigación top se requiere comparación contra baselines, ablación y ataques manuales no vistos."
+  ]
+}

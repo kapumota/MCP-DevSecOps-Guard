@@ -1,0 +1,147 @@
+name: CI DevSecOps - Gate de seguridad
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+  actions: read
+  security-events: write
+  id-token: write
+
+jobs:
+  security-ci:
+    name: security-ci-real
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      SKILLCHAIN_POLICY_MODE: ci
+      POLICY_MODE: ci
+      SKILLCHAIN_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      SKILLCHAIN_STARTED_AT: ${{ github.event.head_commit.timestamp || github.run_started_at }}
+      SKILLCHAIN_GIT_COMMIT: ${{ github.sha }}
+      SKILLCHAIN_SANDBOX_MODE: local
+      SKILLCHAIN_MCP_ROLE: ci_runner
+      IMAGE: python-microservice:dev
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Configurar Go para herramientas externas
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Instalar dependencias Python
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install build
+          python -m pip install -r requirements-mcp.txt
+          python -m pip install -e . --no-deps
+
+      - name: Preparar directorios de evidencia
+        run: mkdir -p artifacts .evidence
+
+      - name: Instalar Syft y Grype
+        run: |
+          curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b /usr/local/bin
+          curl -sSfL https://raw.githubusercontent.com/anchore/grype/main/install.sh | sh -s -- -b /usr/local/bin
+
+      - name: Instalar Trivy
+        uses: aquasecurity/setup-trivy@v0.2.6
+
+      - name: Instalar Gitleaks y OpenSSF Scorecard
+        run: |
+          go install github.com/gitleaks/gitleaks/v8@latest
+          go install github.com/ossf/scorecard/v5@latest
+          echo "$(go env GOPATH)/bin" >> "$GITHUB_PATH"
+
+      - name: Verificar herramientas externas
+        run: |
+          bandit --version
+          semgrep --version
+          pip-audit --version
+          gitleaks version
+          syft version
+          grype version
+          trivy --version
+          scorecard --version || scorecard version
+          docker --version
+          docker compose version
+
+      - name: Ejecutar security-ci con scanners reales
+        run: make security-ci
+
+      - name: Verificar paquete Python distribuible
+        run: |
+          test -d dist
+          ls -lh dist
+          python -m pip install --force-reinstall dist/*.whl
+          skillchain --help >/dev/null
+
+      - name: Verificar evidence pack
+        if: always()
+        run: |
+          latest_pack=$(ls -t artifacts/evidence-pack-*.tar.gz | head -n 1)
+          skillchain evidence verify "$latest_pack" --manifest artifacts/evidence-manifest.json
+
+      - name: Subir evidencia y dashboard
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillchain-security-artifacts
+          path: |
+            artifacts/**
+            .evidence/**
+            dist/**
+          if-no-files-found: warn
+
+  docker-sandbox-smoke:
+    name: sandbox-docker-smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SKILLCHAIN_POLICY_MODE: demo
+      POLICY_MODE: demo
+      SKILLCHAIN_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}-sandbox
+      SKILLCHAIN_GIT_COMMIT: ${{ github.sha }}
+      SKILLCHAIN_SANDBOX_MODE: docker
+      SKILLCHAIN_MCP_ROLE: ci_runner
+      SKILLCHAIN_SANDBOX_IMAGE: skillchain-sandbox:dev
+
+    steps:
+      - name: Clonar repositorio
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Configurar Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar dependencias Python mínimas
+        run: |
+          python -m pip install -U pip
+          python -m pip install -r requirements-dev.txt
+          python -m pip install -r requirements-mcp.txt
+          python -m pip install -e . --no-deps
+
+      - name: Construir imagen de sandbox
+        run: make sandbox-image
+
+      - name: Ejecutar humo del sandbox Docker MCP
+        run: make sandbox-smoke
