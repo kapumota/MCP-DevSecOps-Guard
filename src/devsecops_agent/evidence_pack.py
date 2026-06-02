@@ -293,11 +293,17 @@ def verify_evidence_pack(root: Path | None, pack_path: Path, manifest_path: Path
             }
         )
 
-    expected_entries = {
-        entry.get("relative_path"): entry
-        for entry in manifest.get("files", [])
-        if isinstance(entry, dict) and isinstance(entry.get("relative_path"), str)
-    }
+    expected_entries: dict[str, dict[str, Any]] = {}
+    manifest_files = manifest.get("files", [])
+    if isinstance(manifest_files, list):
+        for entry in manifest_files:
+            if not isinstance(entry, dict):
+                continue
+
+            relative_path = entry.get("relative_path")
+            if not isinstance(relative_path, str) or not relative_path:
+                continue
+            expected_entries[relative_path] = entry
 
     try:
         with tarfile.open(pack, "r:gz") as archive:

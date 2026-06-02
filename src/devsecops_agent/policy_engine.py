@@ -531,11 +531,12 @@ def evaluate_security_tool_outputs(
     scorecard = read_json_if_exists(artifacts / "scorecard.json")
     add_fallback_finding(findings, scorecard, "artifacts/scorecard.json", "openssf-scorecard", mode)
     if isinstance(scorecard, dict):
-        score = scorecard.get("score")
+        raw_score = scorecard.get("score")
         try:
-            score_value = float(score)
+            score_value = float(raw_score if raw_score is not None else 0.0)
         except (TypeError, ValueError):
             score_value = None
+
         if score_value is not None and score_value < 7.0:
             add_finding(
                 findings,
