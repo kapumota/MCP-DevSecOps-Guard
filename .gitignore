@@ -41,5 +41,5 @@ artifacts/*
 *.pyc
 .skillchain/
 .semgrep/
--tools/
 
+.tools/

@@ -11,4 +11,4 @@ artifacts
 .kind-cache
 .env
 .semgrep/
-./tools
+.tools/

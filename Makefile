@@ -6,6 +6,8 @@
 
 SERVICE ?= python-microservice
 IMAGE ?= $(SERVICE):dev
+ZAP_IMAGE ?= ghcr.io/zaproxy/zaproxy:stable
+SCORECARD_REPO ?= $(if $(GITHUB_REPOSITORY),https://github.com/$(GITHUB_REPOSITORY),https://github.com/kapumota/SkillChain-MCP-Guard)
 POLICY_MODE ?= strict
 ifndef SKILLCHAIN_RUN_ID
 SKILLCHAIN_RUN_ID := local-$(shell date -u +%Y%m%dT%H%M%SZ)-$(shell printf "%s" $$$$)
@@ -152,8 +154,7 @@ scan-image: prepare-dirs
 
 openssf-scorecard: prepare-dirs
 	@echo ">> OpenSSF Scorecard local si el CLI está disponible"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); scorecard --repo=. --format=json --show-details > artifacts/scorecard.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool openssf-scorecard --exit-code $$rc --artifact artifacts/scorecard.json --output .evidence/scorecard-exit.json --command "scorecard --repo=. --format=json --show-details" --started-at $$START; exit 0
-
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); scorecard --repo="$(SCORECARD_REPO)" --format=json --show-details > artifacts/scorecard.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool openssf-scorecard --exit-code $$rc --artifact artifacts/scorecard.json --output .evidence/scorecard-exit.json --command "scorecard --repo=$(SCORECARD_REPO) --format=json --show-details" --started-at $$START; exit 0
 # Docker Compose: levantar y bajar el servicio para pruebas locales
 
 compose-up: prepare-dirs
@@ -171,7 +172,7 @@ compose-down:
 
 dast: prepare-dirs
 	@echo ">> DAST: ejecutando OWASP ZAP baseline contra http://127.0.0.1:8000"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); docker run --rm -t --network host -v "$(CURDIR)/artifacts:/zap/wrk:rw" owasp/zap2docker-stable zap-baseline.py -t http://127.0.0.1:8000 -J zap-baseline.json -r zap-report.html; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool zap --exit-code $$rc --artifact artifacts/zap-baseline.json --output .evidence/zap-exit.json --command "zap-baseline.py -t http://127.0.0.1:8000" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); docker run --rm -t --network host -v "$(CURDIR)/artifacts:/zap/wrk:rw" $(ZAP_IMAGE) zap-baseline.py -t http://127.0.0.1:8000 -J zap-baseline.json -r zap-report.html; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool zap --exit-code $$rc --artifact artifacts/zap-baseline.json --output .evidence/zap-exit.json --command "zap-baseline.py -t http://127.0.0.1:8000" --started-at $$START; exit 0
 
 # Kubernetes local con kind
 
