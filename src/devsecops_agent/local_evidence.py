@@ -301,17 +301,18 @@ def generate_local_evidence(root: Path | None = None) -> dict[str, Any]:
         if should_preserve_json(alias_path):
             preserved.append(alias)
             continue
-        payload = read_json_report(base / source)
-        if payload is not None:
-            write_json_report(payload, Path(alias), root=base)
+
+        alias_payload = read_json_report(base / source)
+        if alias_payload is not None:
+            write_json_report(alias_payload, Path(alias), root=base)
             written.append(alias)
 
     fallback_present = bool(written)
     for relative_path in outputs:
-        payload = read_json_report(base / relative_path)
-        if isinstance(payload, dict) and (
-            payload.get("generated_by") == LOCAL_EVIDENCE_GENERATOR
-            or payload.get("tool_mode") == "stdlib-fallback"
+        existing_payload = read_json_report(base / relative_path)
+        if isinstance(existing_payload, dict) and (
+            existing_payload.get("generated_by") == LOCAL_EVIDENCE_GENERATOR
+            or existing_payload.get("tool_mode") == "stdlib-fallback"
         ):
             fallback_present = True
             break
