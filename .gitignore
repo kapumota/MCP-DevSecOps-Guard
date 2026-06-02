@@ -40,3 +40,6 @@ artifacts/*
 # Caches y salidas locales que no deben entrar al release
 *.pyc
 .skillchain/
+.semgrep/
+-tools/
+

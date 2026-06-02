@@ -47,10 +47,21 @@ jobs:
       - name: Instalar dependencias Python
         run: |
           python -m pip install -U pip
+          python -m pip install "setuptools>=70,<81" wheel
           python -m pip install -r requirements-dev.txt
           python -m pip install build
           python -m pip install -r requirements-mcp.txt
           python -m pip install -e . --no-deps
+
+      - name: Instalar Semgrep aislado
+        run: |
+          python -m venv .semgrep
+          .semgrep/bin/python -m pip install -U pip
+          .semgrep/bin/python -m pip install "setuptools>=70,<81" wheel
+          .semgrep/bin/python -m pip install semgrep==1.86.0
+          mkdir -p .tools/bin
+          ln -sf "$PWD/.semgrep/bin/semgrep" .tools/bin/semgrep
+          echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
 
       - name: Preparar directorios de evidencia
         run: mkdir -p artifacts .evidence
@@ -137,6 +148,7 @@ jobs:
       - name: Instalar dependencias Python mínimas
         run: |
           python -m pip install -U pip
+          python -m pip install "setuptools>=70,<81" wheel
           python -m pip install -r requirements-dev.txt
           python -m pip install -r requirements-mcp.txt
           python -m pip install -e . --no-deps
