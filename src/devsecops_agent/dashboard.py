@@ -6,24 +6,28 @@ import argparse
 import html
 import json
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from .artifacts import list_artifacts, read_json_if_exists, resolve_repo_root, summarize_security_findings
+from .artifacts import (
+    list_artifacts,
+    read_json_if_exists,
+    resolve_repo_root,
+    summarize_security_findings,
+)
 from .config import (
     DASHBOARD_HTML_PATH,
-    EVIDENCE_MANIFEST_PATH,
     EVALUATION_REPORT_PATH,
+    EVIDENCE_MANIFEST_PATH,
     MCP_AUDIT_REPORT_PATH,
     POLICY_REPORT_PATH,
     PRODUCT_STATUS_PATH,
     REPO_ROOT,
     SKILL_REPORT_PATH,
 )
-from .security_models import ScanStatus
 from .report_writer import write_json_report
-
+from .security_models import ScanStatus
 
 REPORT_PATHS: dict[str, str] = {
     "skill_scanner": SKILL_REPORT_PATH,
@@ -107,7 +111,9 @@ def evidence_score(policy_report: dict[str, Any] | None) -> float:
     return float(evidence.get("score", 0.0) or 0.0)
 
 
-def calculate_security_score(statuses: dict[str, str], reports: dict[str, dict[str, Any] | None]) -> int:
+def calculate_security_score(
+    statuses: dict[str, str], reports: dict[str, dict[str, Any] | None]
+) -> int:
     """Calcula un score legible para demo a partir de estados, hallazgos y evidencia."""
     score = REALISTIC_SCORE_CEILING
 
@@ -148,7 +154,9 @@ def classify_security_posture(score: int, product_status: str) -> str:
     return "Riesgo bajo: apto para demo/release controlado con riesgo residual monitoreado."
 
 
-def build_control_coverage(statuses: dict[str, str], reports: dict[str, dict[str, Any] | None]) -> list[dict[str, str]]:
+def build_control_coverage(
+    statuses: dict[str, str], reports: dict[str, dict[str, Any] | None]
+) -> list[dict[str, str]]:
     """Agrupa los resultados técnicos en controles fáciles de explicar en una presentación."""
     return [
         {
@@ -182,7 +190,9 @@ def artifact_summary(root: Path) -> dict[str, Any]:
     """Resume archivos de evidencia para mostrar en CLI y dashboard."""
     artifacts = list_artifacts(root)
     total_size = sum(int(item.get("size_bytes", 0) or 0) for item in artifacts)
-    latest = sorted(artifacts, key=lambda item: float(item.get("modified_unix", 0) or 0), reverse=True)[:8]
+    latest = sorted(
+        artifacts, key=lambda item: float(item.get("modified_unix", 0) or 0), reverse=True
+    )[:8]
     return {
         "count": len(artifacts),
         "total_size_bytes": total_size,
@@ -190,7 +200,9 @@ def artifact_summary(root: Path) -> dict[str, Any]:
     }
 
 
-def build_recommendations(product_status: str, reports: dict[str, dict[str, Any] | None]) -> list[str]:
+def build_recommendations(
+    product_status: str, reports: dict[str, dict[str, Any] | None]
+) -> list[str]:
     """Genera recomendaciones accionables basadas en el estado del producto."""
     recommendations: list[str] = []
 
@@ -199,26 +211,36 @@ def build_recommendations(product_status: str, reports: dict[str, dict[str, Any]
     if reports.get("mcp_auditor") is None:
         recommendations.append("Ejecuta `make mcp-audit` para generar la auditoría MCP.")
     if reports.get("controlled_evaluation") is None:
-        recommendations.append("Ejecuta `make agent-eval` para validar los casos adversariales controlados.")
+        recommendations.append(
+            "Ejecuta `make agent-eval` para validar los casos adversariales controlados."
+        )
     if reports.get("policy_engine") is None:
-        recommendations.append("Ejecuta `make policy-check` para obtener la decisión PASS/WARN/FAIL.")
+        recommendations.append(
+            "Ejecuta `make policy-check` para obtener la decisión PASS/WARN/FAIL."
+        )
 
     policy_report = reports.get("policy_engine") or {}
     if isinstance(policy_report, dict):
         evidence = policy_report.get("evidence_completeness", {})
         if isinstance(evidence, dict) and float(evidence.get("score", 0.0) or 0.0) < 1.0:
-            recommendations.append("Ejecuta `make pipeline` para completar SAST, SCA, SBOM, image scan y DAST.")
+            recommendations.append(
+                "Ejecuta `make pipeline` para completar SAST, SCA, SBOM, image scan y DAST."
+            )
         findings = policy_report.get("findings", [])
         if isinstance(findings, list) and any(
             isinstance(finding, dict) and finding.get("rule_id") == "POLICY011"
             for finding in findings
         ):
-            recommendations.append("Reemplaza evidencia fallback con scanners reales antes de CI/release (`make sast sca sbom scan-image compose-up dast compose-down`).")
+            recommendations.append(
+                "Reemplaza evidencia fallback con scanners reales antes de CI/release (`make sast sca sbom scan-image compose-up dast compose-down`)."
+            )
 
     if product_status == ScanStatus.FAIL.value:
         recommendations.append("Corrige hallazgos high/critical antes de aprobar merge o release.")
     elif product_status == ScanStatus.WARN.value:
-        recommendations.append("Documenta mitigaciones y revisa evidencias faltantes antes de release.")
+        recommendations.append(
+            "Documenta mitigaciones y revisa evidencias faltantes antes de release."
+        )
 
     if not recommendations:
         recommendations.append("Mantén el evidence pack actualizado antes de cada release.")
@@ -230,10 +252,14 @@ def build_product_status(root: Path | None = None) -> dict[str, Any]:
     """Construye el resumen de producto a partir de reportes existentes."""
     base = resolve_repo_root(root)
     reports = {name: load_json_report(base, path) for name, path in REPORT_PATHS.items()}
-    statuses = {name: normalize_status(report, default="MISSING") for name, report in reports.items()}
+    statuses = {
+        name: normalize_status(report, default="MISSING") for name, report in reports.items()
+    }
 
     # El manifest no es un scanner; si existe se marca como PASS para evitar ruido visual.
-    statuses["evidence_manifest"] = "PASS" if reports["evidence_manifest"] is not None else "MISSING"
+    statuses["evidence_manifest"] = (
+        "PASS" if reports["evidence_manifest"] is not None else "MISSING"
+    )
 
     product_status = max_status(
         [
@@ -250,13 +276,15 @@ def build_product_status(root: Path | None = None) -> dict[str, Any]:
     policy_report = reports.get("policy_engine") or {}
     eval_report = reports.get("controlled_evaluation") or {}
 
-    policy_counts = report_finding_counts(policy_report if isinstance(policy_report, dict) else None)
+    policy_counts = report_finding_counts(
+        policy_report if isinstance(policy_report, dict) else None
+    )
     eval_metrics = eval_report.get("metrics", {}) if isinstance(eval_report, dict) else {}
     summary = summarize_security_findings(base)
 
     return {
         "product": "SkillChain-MCP Guard",
-        "generated_at_utc": datetime.now(timezone.utc).isoformat(),
+        "generated_at_utc": datetime.now(UTC).isoformat(),
         "repo_root": str(base),
         "status": product_status,
         "security_score": score,
@@ -284,7 +312,9 @@ def build_product_status(root: Path | None = None) -> dict[str, Any]:
     }
 
 
-def write_product_status(report: dict[str, Any], output_path: Path, root: Path | None = None) -> Path:
+def write_product_status(
+    report: dict[str, Any], output_path: Path, root: Path | None = None
+) -> Path:
     """Escribe el resumen de producto en JSON."""
     return write_json_report(report, output_path, root=root)
 
@@ -322,8 +352,16 @@ def render_dashboard_html(report: dict[str, Any]) -> str:
     latest = artifacts.get("latest", []) if isinstance(artifacts, dict) else []
     recommendations = report.get("recommendations", [])
     tools = report.get("security_tool_summary", {})
-    executive = report.get("executive_summary", {}) if isinstance(report.get("executive_summary", {}), dict) else {}
-    control_coverage = report.get("control_coverage", []) if isinstance(report.get("control_coverage", []), list) else []
+    executive = (
+        report.get("executive_summary", {})
+        if isinstance(report.get("executive_summary", {}), dict)
+        else {}
+    )
+    control_coverage = (
+        report.get("control_coverage", [])
+        if isinstance(report.get("control_coverage", []), list)
+        else []
+    )
 
     status_rows = "\n".join(
         f"<tr><td>{html.escape(COMPONENT_LABELS.get(name, name.replace('_', ' ').title()))}</td>"
@@ -332,35 +370,47 @@ def render_dashboard_html(report: dict[str, Any]) -> str:
         for name, status in statuses.items()
     )
 
-    metric_cards = "\n".join(
-        f'<div class="metric-card"><span>{html.escape(METRIC_LABELS.get(name, name))}</span>'
-        f"<strong>{render_metric_value(value)}</strong></div>"
-        for name, value in metrics.items()
-    ) or '<div class="metric-card"><span>Métricas de evaluación</span><strong>Sin datos</strong></div>'
+    metric_cards = (
+        "\n".join(
+            f'<div class="metric-card"><span>{html.escape(METRIC_LABELS.get(name, name))}</span>'
+            f"<strong>{render_metric_value(value)}</strong></div>"
+            for name, value in metrics.items()
+        )
+        or '<div class="metric-card"><span>Métricas de evaluación</span><strong>Sin datos</strong></div>'
+    )
 
-    artifact_rows = "\n".join(
-        f"<tr><td><code>{html.escape(str(item.get('relative_path', '')))}</code></td>"
-        f"<td>{format_bytes(int(item.get('size_bytes', 0) or 0))}</td></tr>"
-        for item in latest
-    ) or "<tr><td colspan='2'>No se encontraron artefactos.</td></tr>"
+    artifact_rows = (
+        "\n".join(
+            f"<tr><td><code>{html.escape(str(item.get('relative_path', '')))}</code></td>"
+            f"<td>{format_bytes(int(item.get('size_bytes', 0) or 0))}</td></tr>"
+            for item in latest
+        )
+        or "<tr><td colspan='2'>No se encontraron artefactos.</td></tr>"
+    )
 
     recommendation_items = "\n".join(f"<li>{html.escape(item)}</li>" for item in recommendations)
 
-    control_rows = "\n".join(
-        "<tr>"
-        f"<td>{html.escape(str(item.get('area', '')))}</td>"
-        f"<td>{html.escape(str(item.get('control', '')))}</td>"
-        f"<td>{status_badge(str(item.get('status', 'UNKNOWN')))}</td>"
-        f"<td><code>{html.escape(str(item.get('evidence', '')))}</code></td>"
-        "</tr>"
-        for item in control_coverage
-        if isinstance(item, dict)
-    ) or "<tr><td colspan='4'>No hay controles calculados.</td></tr>"
+    control_rows = (
+        "\n".join(
+            "<tr>"
+            f"<td>{html.escape(str(item.get('area', '')))}</td>"
+            f"<td>{html.escape(str(item.get('control', '')))}</td>"
+            f"<td>{status_badge(str(item.get('status', 'UNKNOWN')))}</td>"
+            f"<td><code>{html.escape(str(item.get('evidence', '')))}</code></td>"
+            "</tr>"
+            for item in control_coverage
+            if isinstance(item, dict)
+        )
+        or "<tr><td colspan='4'>No hay controles calculados.</td></tr>"
+    )
 
-    tool_items = "\n".join(
-        f"<li><strong>{html.escape(name)}</strong>: <code>{html.escape(json.dumps(value, ensure_ascii=False))}</code></li>"
-        for name, value in tools.items()
-    ) or "<li>Aún no hay resúmenes de scanners disponibles.</li>"
+    tool_items = (
+        "\n".join(
+            f"<li><strong>{html.escape(name)}</strong>: <code>{html.escape(json.dumps(value, ensure_ascii=False))}</code></li>"
+            for name, value in tools.items()
+        )
+        or "<li>Aún no hay resúmenes de scanners disponibles.</li>"
+    )
 
     return f"""<!doctype html>
 <html lang="es">
@@ -519,7 +569,9 @@ def render_dashboard_html(report: dict[str, Any]) -> str:
 """
 
 
-def write_dashboard_html(report: dict[str, Any], output_path: Path, root: Path | None = None) -> Path:
+def write_dashboard_html(
+    report: dict[str, Any], output_path: Path, root: Path | None = None
+) -> Path:
     """Escribe el dashboard HTML autocontenido."""
     base = resolve_repo_root(root)
     path = output_path if output_path.is_absolute() else base / output_path
@@ -556,11 +608,23 @@ def format_status_text(report: dict[str, Any]) -> str:
 
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser CLI del dashboard."""
-    parser = argparse.ArgumentParser(description="Generate a SkillChain-MCP Guard product dashboard.")
-    parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a inspeccionar.")
-    parser.add_argument("--output", default=DASHBOARD_HTML_PATH, help="Ruta de salida del dashboard HTML.")
-    parser.add_argument("--json-output", default=PRODUCT_STATUS_PATH, help="Ruta de salida del JSON de estado del producto.")
-    parser.add_argument("--print-summary", action="store_true", help="Print a terminal summary after generation.")
+    parser = argparse.ArgumentParser(
+        description="Generate a SkillChain-MCP Guard product dashboard."
+    )
+    parser.add_argument(
+        "--root", default=str(REPO_ROOT), help="Raíz del repositorio a inspeccionar."
+    )
+    parser.add_argument(
+        "--output", default=DASHBOARD_HTML_PATH, help="Ruta de salida del dashboard HTML."
+    )
+    parser.add_argument(
+        "--json-output",
+        default=PRODUCT_STATUS_PATH,
+        help="Ruta de salida del JSON de estado del producto.",
+    )
+    parser.add_argument(
+        "--print-summary", action="store_true", help="Print a terminal summary after generation."
+    )
     return parser
 
 

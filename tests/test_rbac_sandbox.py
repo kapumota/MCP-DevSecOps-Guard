@@ -8,17 +8,25 @@ from devsecops_agent.sandbox import require_sandbox_for_mode
 
 def test_auditor_cannot_run_security_ci():
     with pytest.raises(RbacError):
-        authorize_tool_invocation(role="auditor_readonly", tool_name="run_devsecops_check", target="security-ci", root=Path.cwd())
-
+        authorize_tool_invocation(
+            role="auditor_readonly",
+            tool_name="run_devsecops_check",
+            target="security-ci",
+            root=Path.cwd(),
+        )
 
 
 def test_readonly_auditor_cannot_create_evidence_archive():
     with pytest.raises(RbacError):
-        authorize_tool_invocation(role="auditor_readonly", tool_name="create_evidence_archive", root=Path.cwd())
+        authorize_tool_invocation(
+            role="auditor_readonly", tool_name="create_evidence_archive", root=Path.cwd()
+        )
 
 
 def test_operator_auditor_can_generate_dashboard():
-    result = authorize_tool_invocation(role="auditor_operator", tool_name="generate_product_dashboard", root=Path.cwd())
+    result = authorize_tool_invocation(
+        role="auditor_operator", tool_name="generate_product_dashboard", root=Path.cwd()
+    )
     assert result["allowed"] is True
     assert result["role"] == "auditor_operator"
 
@@ -28,15 +36,20 @@ def test_default_role_is_readonly(monkeypatch):
     result = authorize_tool_invocation(role=None, tool_name="summarize_findings", root=Path.cwd())
     assert result["role"] == "auditor_readonly"
 
+
 def test_ci_runner_can_run_security_ci():
-    result = authorize_tool_invocation(role="ci_runner", tool_name="run_devsecops_check", target="security-ci", root=Path.cwd())
+    result = authorize_tool_invocation(
+        role="ci_runner", tool_name="run_devsecops_check", target="security-ci", root=Path.cwd()
+    )
     assert result["allowed"] is True
     assert result["role"] == "ci_runner"
 
 
 def test_unknown_target_is_denied_by_rbac():
     with pytest.raises(RbacError):
-        authorize_tool_invocation(role="ci_runner", tool_name="run_devsecops_check", target="shell", root=Path.cwd())
+        authorize_tool_invocation(
+            role="ci_runner", tool_name="run_devsecops_check", target="shell", root=Path.cwd()
+        )
 
 
 def test_strict_mode_requires_enabled_sandbox():

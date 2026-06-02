@@ -30,5 +30,16 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "B", "A"]
 ignore = ["B904"]
 
+[tool.ruff.lint.per-file-ignores]
+"src/devsecops_agent/dashboard.py" = ["E501"]
+"src/devsecops_agent/cli.py" = ["E501"]
+"src/devsecops_agent/artifacts.py" = ["E501"]
+"src/devsecops_agent/evaluation_harness.py" = ["E501"]
+"src/devsecops_agent/evidence_pack.py" = ["E501"]
+"src/devsecops_agent/local_evidence.py" = ["E501"]
+"src/devsecops_agent/mcp_auditor.py" = ["E501"]
+"src/devsecops_agent/policy_engine.py" = ["E501"]
+"src/devsecops_agent/skill_scanner.py" = ["E501"]
+
 [tool.bandit]
-exclude_dirs = ["tests", ".venv"]
+exclude_dirs = ["tests", ".venv", ".skillchain", ".semgrep", ".tools"]

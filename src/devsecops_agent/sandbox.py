@@ -44,8 +44,7 @@ class LocalSandboxRunner:
             command,
             cwd=cwd,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout_seconds,
             check=False,
             shell=False,
@@ -124,8 +123,7 @@ class DockerSandboxRunner:
         process = subprocess.run(
             docker_command,
             text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            capture_output=True,
             timeout=timeout_seconds,
             check=False,
             shell=False,
@@ -169,7 +167,9 @@ def get_sandbox_runner(mode: str | None = None) -> SandboxRunner:
     raise ValueError(f"Modo de sandbox inválido: {effective}")
 
 
-def run_sandboxed_make_target(target: str, timeout_seconds: int, root: Path | None = None) -> SandboxResult:
+def run_sandboxed_make_target(
+    target: str, timeout_seconds: int, root: Path | None = None
+) -> SandboxResult:
     """Ejecuta make target mediante el sandbox configurado."""
     base = (root or REPO_ROOT).resolve()
     require_sandbox_for_mode()

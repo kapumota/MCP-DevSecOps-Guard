@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from pathlib import Path
 import os
+from pathlib import Path
 from typing import Final
-
 
 REPO_ROOT: Final[Path] = Path(os.environ.get("DEVSECOPS_REPO_ROOT", Path.cwd())).resolve()
 ARTIFACT_DIRS: Final[tuple[str, ...]] = ("artifacts", ".evidence")

@@ -63,7 +63,9 @@ def run_devsecops_check(target: str, role: str = "auditor") -> dict:
 def test_mcp_auditor_accepts_artifact_filename_locator():
     report = audit_mcp_server(root=Path.cwd())
     artifact_resources = [
-        resource for resource in report["resources"] if resource.get("locator") == "artifact://{filename}"
+        resource
+        for resource in report["resources"]
+        if resource.get("locator") == "artifact://{filename}"
     ]
     assert artifact_resources
     assert report["controls"]["artifact_path_validation"] is True

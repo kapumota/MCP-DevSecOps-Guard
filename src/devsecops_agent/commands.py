@@ -30,7 +30,9 @@ def validate_make_target(target: str) -> str:
     return target
 
 
-def run_make_target(target: str, timeout_seconds: int = 180, root: Path | None = None) -> dict[str, Any]:
+def run_make_target(
+    target: str, timeout_seconds: int = 180, root: Path | None = None
+) -> dict[str, Any]:
     """Ejecuta un target Makefile permitido con rol efectivo externo al cliente MCP."""
     safe_target = validate_make_target(target)
     timeout = validate_timeout(timeout_seconds)

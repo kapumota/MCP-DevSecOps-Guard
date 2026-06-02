@@ -23,10 +23,10 @@ from .dashboard import (
     write_product_status,
 )
 from .evaluation_harness import run_controlled_evaluation, write_evaluation_report
-from .mcp_auditor import audit_mcp_server, write_audit_report
 from .evidence_pack import create_evidence_pack, verify_evidence_pack
-from .policy_engine import VALID_POLICY_MODES, evaluate_policy, write_policy_report
 from .local_evidence import generate_local_evidence
+from .mcp_auditor import audit_mcp_server, write_audit_report
+from .policy_engine import VALID_POLICY_MODES, evaluate_policy, write_policy_report
 from .security_models import ScanStatus
 from .skill_scanner import scan_skills, write_scan_report
 
@@ -117,7 +117,11 @@ def command_audit_mcp(args: argparse.Namespace) -> int:
     root = Path(args.root).resolve()
     report = audit_mcp_server(root=root)
     output = write_audit_report(report, Path(args.output), root=root)
-    payload = {"status": report["status"], "overall_risk": report.get("overall_risk", "unknown"), "output": str(output)}
+    payload = {
+        "status": report["status"],
+        "overall_risk": report.get("overall_risk", "unknown"),
+        "output": str(output),
+    }
     print(json.dumps(payload, indent=2 if args.json else None, ensure_ascii=False))
     if args.fail_on_fail and report["status"] == ScanStatus.FAIL.value:
         return 2
@@ -202,7 +206,9 @@ def command_local_evidence(args: argparse.Namespace) -> int:
 def command_evidence_verify(args: argparse.Namespace) -> int:
     """Verifica un evidence pack contra su manifiesto sidecar."""
     root = Path(args.root).resolve()
-    result = verify_evidence_pack(root=root, pack_path=Path(args.pack), manifest_path=Path(args.manifest))
+    result = verify_evidence_pack(
+        root=root, pack_path=Path(args.pack), manifest_path=Path(args.manifest)
+    )
     print(json.dumps(result, indent=2 if args.json else None, ensure_ascii=False))
     return 0 if result["status"] == "PASS" else 2
 
@@ -210,8 +216,20 @@ def command_evidence_verify(args: argparse.Namespace) -> int:
 def command_evidence_create(args: argparse.Namespace) -> int:
     """Crea un evidence pack y manifiesto sidecar."""
     root = Path(args.root).resolve()
-    manifest = create_evidence_pack(root=root, output_path=Path(args.output) if args.output else None)
-    print(json.dumps({"status": "PASS", "pack_path": manifest["pack_path"], "manifest_path": manifest["manifest_path"]}, indent=2 if args.json else None, ensure_ascii=False))
+    manifest = create_evidence_pack(
+        root=root, output_path=Path(args.output) if args.output else None
+    )
+    print(
+        json.dumps(
+            {
+                "status": "PASS",
+                "pack_path": manifest["pack_path"],
+                "manifest_path": manifest["manifest_path"],
+            },
+            indent=2 if args.json else None,
+            ensure_ascii=False,
+        )
+    )
     return 0
 
 
@@ -221,38 +239,80 @@ def build_parser() -> argparse.ArgumentParser:
         prog="skillchain",
         description="CLI de producto para SkillChain-MCP Guard.",
     )
-    parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a inspeccionar o escanear.")
+    parser.add_argument(
+        "--root", default=str(REPO_ROOT), help="Raíz del repositorio a inspeccionar o escanear."
+    )
 
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     scan_parser = subparsers.add_parser("scan", help="Ejecuta checks livianos y genera dashboard.")
     scan_parser.add_argument("--json", action="store_true", help="Imprime JSON legible.")
-    scan_parser.add_argument("--fail-on-fail", action="store_true", help="Devuelve 2 cuando el estado del producto es FAIL.")
+    scan_parser.add_argument(
+        "--fail-on-fail",
+        action="store_true",
+        help="Devuelve 2 cuando el estado del producto es FAIL.",
+    )
     scan_parser.set_defaults(func=command_scan)
 
-    status_parser = subparsers.add_parser("status", help="Muestra el estado actual desde reportes existentes.")
-    status_parser.add_argument("--json", action="store_true", help="Imprime el estado JSON completo.")
-    status_parser.add_argument("--output", default=PRODUCT_STATUS_PATH, help="Ruta del JSON de estado del producto.")
-    status_parser.add_argument("--fail-on-fail", action="store_true", help="Devuelve 2 cuando el estado del producto es FAIL.")
+    status_parser = subparsers.add_parser(
+        "status", help="Muestra el estado actual desde reportes existentes."
+    )
+    status_parser.add_argument(
+        "--json", action="store_true", help="Imprime el estado JSON completo."
+    )
+    status_parser.add_argument(
+        "--output", default=PRODUCT_STATUS_PATH, help="Ruta del JSON de estado del producto."
+    )
+    status_parser.add_argument(
+        "--fail-on-fail",
+        action="store_true",
+        help="Devuelve 2 cuando el estado del producto es FAIL.",
+    )
     status_parser.set_defaults(func=command_status)
 
-    dashboard_parser = subparsers.add_parser("dashboard", help="Genera el dashboard HTML del producto.")
-    dashboard_parser.add_argument("--output", default=DASHBOARD_HTML_PATH, help="Ruta de salida del dashboard HTML.")
-    dashboard_parser.add_argument("--json-output", default=PRODUCT_STATUS_PATH, help="Ruta de salida del JSON de estado del producto.")
-    dashboard_parser.add_argument("--json", action="store_true", help="Imprime salida legible del comando.")
+    dashboard_parser = subparsers.add_parser(
+        "dashboard", help="Genera el dashboard HTML del producto."
+    )
+    dashboard_parser.add_argument(
+        "--output", default=DASHBOARD_HTML_PATH, help="Ruta de salida del dashboard HTML."
+    )
+    dashboard_parser.add_argument(
+        "--json-output",
+        default=PRODUCT_STATUS_PATH,
+        help="Ruta de salida del JSON de estado del producto.",
+    )
+    dashboard_parser.add_argument(
+        "--json", action="store_true", help="Imprime salida legible del comando."
+    )
     dashboard_parser.set_defaults(func=command_dashboard)
 
-
-    audit_parser = subparsers.add_parser("audit-mcp", help="Ejecuta auditoría MCP y escribe reporte JSON.")
-    audit_parser.add_argument("--output", default=MCP_AUDIT_REPORT_PATH, help="Ruta del JSON de auditoría MCP.")
+    audit_parser = subparsers.add_parser(
+        "audit-mcp", help="Ejecuta auditoría MCP y escribe reporte JSON."
+    )
+    audit_parser.add_argument(
+        "--output", default=MCP_AUDIT_REPORT_PATH, help="Ruta del JSON de auditoría MCP."
+    )
     audit_parser.add_argument("--json", action="store_true", help="Imprime JSON legible.")
-    audit_parser.add_argument("--fail-on-fail", action="store_true", help="Devuelve 2 cuando la auditoría MCP queda en FAIL.")
+    audit_parser.add_argument(
+        "--fail-on-fail",
+        action="store_true",
+        help="Devuelve 2 cuando la auditoría MCP queda en FAIL.",
+    )
     audit_parser.set_defaults(func=command_audit_mcp)
 
-    policy_parser = subparsers.add_parser("policy-check", help="Ejecuta el policy gate y escribe reporte JSON.")
-    policy_parser.add_argument("--output", default=POLICY_REPORT_PATH, help="Ruta del JSON de política.")
+    policy_parser = subparsers.add_parser(
+        "policy-check", help="Ejecuta el policy gate y escribe reporte JSON."
+    )
+    policy_parser.add_argument(
+        "--output", default=POLICY_REPORT_PATH, help="Ruta del JSON de política."
+    )
     policy_parser.add_argument("--json", action="store_true", help="Imprime JSON legible.")
-    policy_parser.add_argument("--mode", choices=sorted(VALID_POLICY_MODES), default="strict", help="Perfil de política: demo, ci o strict.")
+    policy_parser.add_argument(
+        "--mode",
+        choices=sorted(VALID_POLICY_MODES),
+        default="strict",
+        help="Perfil de política: demo, ci o strict.",
+    )
     policy_parser.add_argument(
         "--fail-on-fail",
         action="store_true",
@@ -265,40 +325,73 @@ def build_parser() -> argparse.ArgumentParser:
     )
     policy_parser.set_defaults(func=command_policy_check)
 
-    report_parser = subparsers.add_parser("report", help="Genera reporte de producto, dashboard y evidence pack opcional.")
-    report_parser.add_argument("--output", default=PRODUCT_STATUS_PATH, help="Ruta del JSON de estado del producto.")
-    report_parser.add_argument("--dashboard-output", default=DASHBOARD_HTML_PATH, help="Ruta del dashboard HTML.")
-    report_parser.add_argument("--json", action="store_true", help="Imprime salida legible del comando.")
-    report_parser.add_argument("--evidence-pack", action="store_true", help="También crea evidence-pack tar.gz.")
-    report_parser.add_argument("--generate-local-evidence", action="store_true", help="Crea evidencia fallback local antes de reportar.")
+    report_parser = subparsers.add_parser(
+        "report", help="Genera reporte de producto, dashboard y evidence pack opcional."
+    )
+    report_parser.add_argument(
+        "--output", default=PRODUCT_STATUS_PATH, help="Ruta del JSON de estado del producto."
+    )
+    report_parser.add_argument(
+        "--dashboard-output", default=DASHBOARD_HTML_PATH, help="Ruta del dashboard HTML."
+    )
+    report_parser.add_argument(
+        "--json", action="store_true", help="Imprime salida legible del comando."
+    )
+    report_parser.add_argument(
+        "--evidence-pack", action="store_true", help="También crea evidence-pack tar.gz."
+    )
+    report_parser.add_argument(
+        "--generate-local-evidence",
+        action="store_true",
+        help="Crea evidencia fallback local antes de reportar.",
+    )
     report_parser.set_defaults(func=command_report)
 
-    local_evidence_parser = subparsers.add_parser("local-evidence", help="Genera evidencia fallback local.")
+    local_evidence_parser = subparsers.add_parser(
+        "local-evidence", help="Genera evidencia fallback local."
+    )
     local_evidence_parser.add_argument("--json", action="store_true", help="Imprime JSON legible.")
     local_evidence_parser.set_defaults(func=command_local_evidence)
 
     evidence_parser = subparsers.add_parser("evidence", help="Crea o verifica evidence packs.")
     evidence_subparsers = evidence_parser.add_subparsers(dest="evidence_command", required=True)
 
-    evidence_create = evidence_subparsers.add_parser("create", help="Crea evidence-pack tar.gz y manifiesto sidecar.")
-    evidence_create.add_argument("--output", default=None, help="Ruta opcional del evidence-pack tar.gz.")
+    evidence_create = evidence_subparsers.add_parser(
+        "create", help="Crea evidence-pack tar.gz y manifiesto sidecar."
+    )
+    evidence_create.add_argument(
+        "--output", default=None, help="Ruta opcional del evidence-pack tar.gz."
+    )
     evidence_create.add_argument("--json", action="store_true", help="Imprime JSON legible.")
     evidence_create.set_defaults(func=command_evidence_create)
 
-    evidence_verify = evidence_subparsers.add_parser("verify", help="Verifica evidence-pack tar.gz contra evidence-manifest.json.")
+    evidence_verify = evidence_subparsers.add_parser(
+        "verify", help="Verifica evidence-pack tar.gz contra evidence-manifest.json."
+    )
     evidence_verify.add_argument("pack", help="Ruta al evidence-pack tar.gz.")
-    evidence_verify.add_argument("--manifest", default="artifacts/evidence-manifest.json", help="Ruta al manifiesto sidecar JSON.")
+    evidence_verify.add_argument(
+        "--manifest",
+        default="artifacts/evidence-manifest.json",
+        help="Ruta al manifiesto sidecar JSON.",
+    )
     evidence_verify.add_argument("--json", action="store_true", help="Imprime JSON legible.")
     evidence_verify.set_defaults(func=command_evidence_verify)
 
-
     benchmark_parser = subparsers.add_parser("benchmark", help="Ejecuta benchmark adversarial.")
     benchmark_subparsers = benchmark_parser.add_subparsers(dest="benchmark_command", required=True)
-    benchmark_run_parser = benchmark_subparsers.add_parser("run", help="Ejecuta el benchmark adversarial controlado.")
-    benchmark_run_parser.add_argument("--suite", default="eval_cases", help="Suite declarativa; reservado para compatibilidad.")
-    benchmark_run_parser.add_argument("--output", default="artifacts/benchmark-report.json", help="Ruta de salida JSON.")
+    benchmark_run_parser = benchmark_subparsers.add_parser(
+        "run", help="Ejecuta el benchmark adversarial controlado."
+    )
+    benchmark_run_parser.add_argument(
+        "--suite", default="eval_cases", help="Suite declarativa; reservado para compatibilidad."
+    )
+    benchmark_run_parser.add_argument(
+        "--output", default="artifacts/benchmark-report.json", help="Ruta de salida JSON."
+    )
     benchmark_run_parser.add_argument("--json", action="store_true", help="Imprime JSON legible.")
-    benchmark_run_parser.add_argument("--fail-on-fail", action="store_true", help="Devuelve 2 si el benchmark falla.")
+    benchmark_run_parser.add_argument(
+        "--fail-on-fail", action="store_true", help="Devuelve 2 si el benchmark falla."
+    )
     benchmark_run_parser.set_defaults(func=command_benchmark_run)
 
     return parser

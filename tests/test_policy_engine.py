@@ -2,7 +2,11 @@ import json
 from pathlib import Path
 
 from devsecops_agent.config import MCP_AUDIT_REPORT_PATH, SKILL_REPORT_PATH
-from devsecops_agent.policy_engine import SCANNER_EXIT_EVIDENCE, evaluate_policy, write_policy_report
+from devsecops_agent.policy_engine import (
+    SCANNER_EXIT_EVIDENCE,
+    evaluate_policy,
+    write_policy_report,
+)
 from devsecops_agent.tool_evidence import build_tool_exit_record
 
 
@@ -156,7 +160,9 @@ def test_pip_audit_dev_vulnerability_blocks_policy(tmp_path: Path, monkeypatch):
     report = evaluate_policy(root=tmp_path)
 
     assert report["status"] == "FAIL"
-    assert any("pip-audit-dev.json" in finding.get("evidence", "") for finding in report["findings"])
+    assert any(
+        "pip-audit-dev.json" in finding.get("evidence", "") for finding in report["findings"]
+    )
 
 
 def test_strict_policy_blocks_fallback_evidence(tmp_path: Path, monkeypatch):
@@ -212,7 +218,9 @@ def test_ci_policy_blocks_missing_scanner_exit_evidence(tmp_path: Path):
 
 def test_ci_policy_blocks_stale_scanner_artifact_hash(tmp_path: Path):
     write_required_policy_inputs(tmp_path)
-    (tmp_path / "artifacts/bandit.json").write_text(json.dumps({"results": [{"issue_severity": "LOW"}]}), encoding="utf-8")
+    (tmp_path / "artifacts/bandit.json").write_text(
+        json.dumps({"results": [{"issue_severity": "LOW"}]}), encoding="utf-8"
+    )
 
     report = evaluate_policy(root=tmp_path, mode="ci")
 

@@ -9,7 +9,7 @@ import subprocess
 import sys
 import uuid
 from copy import deepcopy
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +31,7 @@ def tool_version() -> str:
 
 def utc_now() -> str:
     """Devuelve un timestamp UTC ISO-8601."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def git_commit(root: Path | None = None) -> str:
@@ -109,7 +109,9 @@ def current_run_id() -> str:
     return generated
 
 
-def build_report_metadata(root: Path | None = None, started_at: str | None = None) -> dict[str, Any]:
+def build_report_metadata(
+    root: Path | None = None, started_at: str | None = None
+) -> dict[str, Any]:
     """Construye el bloque estándar de metadatos requerido por cada reporte interno."""
     finished = utc_now()
     return {
@@ -128,12 +130,15 @@ def build_report_metadata(root: Path | None = None, started_at: str | None = Non
 def ensure_report_metadata(report: dict[str, Any], root: Path | None = None) -> dict[str, Any]:
     """Devuelve una copia enriquecida con metadatos de schema y trazabilidad."""
     payload = deepcopy(report)
-    started_at = str(
-        payload.get("started_at")
-        or payload.get("created_at_utc")
-        or payload.get("generated_at_utc")
-        or ""
-    ) or None
+    started_at = (
+        str(
+            payload.get("started_at")
+            or payload.get("created_at_utc")
+            or payload.get("generated_at_utc")
+            or ""
+        )
+        or None
+    )
     metadata = build_report_metadata(root=root, started_at=started_at)
     for key, value in metadata.items():
         payload.setdefault(key, value)
