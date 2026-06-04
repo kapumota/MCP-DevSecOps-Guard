@@ -60,7 +60,12 @@ jobs:
           .semgrep/bin/python -m pip install "setuptools>=70,<81" wheel
           .semgrep/bin/python -m pip install semgrep==1.86.0
           mkdir -p .tools/bin
-          ln -sf "$PWD/.semgrep/bin/semgrep" .tools/bin/semgrep
+          cat > .tools/bin/semgrep <<'SH'
+          #!/usr/bin/env sh
+          RAIZ_REPO="$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)"
+          PATH="$RAIZ_REPO/.semgrep/bin:$PATH" exec "$RAIZ_REPO/.semgrep/bin/semgrep" "$@"
+          SH
+          chmod +x .tools/bin/semgrep
           echo "$PWD/.tools/bin" >> "$GITHUB_PATH"
 
       - name: Preparar directorios de evidencia
