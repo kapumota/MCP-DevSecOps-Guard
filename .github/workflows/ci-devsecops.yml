@@ -106,6 +106,58 @@ jobs:
       - name: Ejecutar security-ci con scanners reales
         run: make security-ci
 
+      - name: Mostrar policy report si falla
+        if: failure()
+        run: |
+          if [ -f artifacts/policy-report.json ]; then
+            python - <<'PY'
+            import json
+            from collections import Counter
+            from pathlib import Path
+
+            ruta = Path("artifacts/policy-report.json")
+            reporte = json.loads(ruta.read_text())
+            hallazgos = reporte.get("findings", [])
+
+            print("STATUS:", reporte.get("status"))
+            print("MODE:", reporte.get("mode"))
+            print("BLOCKING ISSUES:", reporte.get("blocking_issues"))
+            print("WARNINGS:", reporte.get("warnings"))
+            print("EVIDENCE COMPLETENESS:", reporte.get("evidence_completeness"))
+
+            print("
+POR SEVERIDAD:")
+            print(Counter(item.get("severity") for item in hallazgos))
+
+            print("
+POR COMPONENTE:")
+            print(Counter(item.get("component") for item in hallazgos))
+
+            print("
+PRIMEROS HALLAZGOS:")
+            for indice, item in enumerate(hallazgos[:80], start=1):
+                print(
+                    f"{indice}. [{item.get('severity')}] "
+                    f"{item.get('component')} - {item.get('message')}"
+                )
+                print(f"   rule_id: {item.get('rule_id')}")
+                print(f"   evidence: {item.get('evidence')}")
+            PY
+          else
+            echo "No existe artifacts/policy-report.json"
+          fi
+
+      - name: Subir evidencia de diagnóstico
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: skillchain-evidence-diagnostic-${{ github.run_id }}
+          if-no-files-found: warn
+          path: |
+            artifacts/**
+            .evidence/**
+
+
       - name: Verificar paquete Python distribuible
         run: |
           test -d dist
