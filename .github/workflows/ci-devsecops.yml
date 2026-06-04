@@ -98,6 +98,11 @@ jobs:
           docker --version
           docker compose version
 
+      - name: Configurar token para OpenSSF Scorecard
+        run: echo "GITHUB_AUTH_TOKEN=${GITHUB_TOKEN}" >> "$GITHUB_ENV"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Ejecutar security-ci con scanners reales
         run: make security-ci
 
