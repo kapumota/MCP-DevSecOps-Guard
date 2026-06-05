@@ -22,7 +22,6 @@ jobs:
       SKILLCHAIN_POLICY_MODE: ci
       POLICY_MODE: ci
       SKILLCHAIN_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-      SKILLCHAIN_STARTED_AT: ${{ github.event.head_commit.timestamp || github.run_started_at }}
       SKILLCHAIN_GIT_COMMIT: ${{ github.sha }}
       SKILLCHAIN_SANDBOX_MODE: local
       SKILLCHAIN_MCP_ROLE: ci_runner
@@ -33,6 +32,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
+      - name: Configurar metadatos de corrida
+        run: |
+          echo "SKILLCHAIN_STARTED_AT=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> "$GITHUB_ENV"
 
       - name: Configurar Python
         uses: actions/setup-python@v5
@@ -116,18 +119,8 @@ jobs:
             echo "No existe artifacts/policy-report.json"
           fi
 
-      - name: Subir evidencia de diagnóstico
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: skillchain-evidence-diagnostic-${{ github.run_id }}
-          if-no-files-found: warn
-          path: |
-            artifacts/**
-            .evidence/**
-
-
       - name: Verificar paquete Python distribuible
+        if: success()
         run: |
           test -d dist
           ls -lh dist
@@ -145,7 +138,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: skillchain-security-artifacts
+          name: skillchain-security-artifacts-${{ github.run_id }}
           path: |
             artifacts/**
             .evidence/**
