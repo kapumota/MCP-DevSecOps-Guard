@@ -20,6 +20,10 @@ from .config import (
     REQUIRED_POLICY_REPORTS,
     SKILL_REPORT_PATH,
 )
+from .image_vulnerability_policy import (
+    NORMALIZED_REPORT_PATH,
+    evaluate_image_vulnerability_policy,
+)
 from .report_writer import write_json_report
 from .security_models import RiskLevel, ScanStatus, SecurityFinding
 from .tool_evidence import verify_tool_exit_record
@@ -479,6 +483,10 @@ def evaluate_security_tool_outputs(
                     evidence=f"{relative_path}:{dependency.get('name', 'unknown')}",
                 )
 
+    normalized_image_report_available = (
+        root / NORMALIZED_REPORT_PATH
+    ).is_file()
+
     for scanner_name, relative_path, rule_id, message in (
         (
             "grype",
@@ -499,6 +507,12 @@ def evaluate_security_tool_outputs(
             "Gitleaks reporta una exposición de secreto.",
         ),
     ):
+        if (
+            normalized_image_report_available
+            and scanner_name in {"grype", "trivy"}
+        ):
+            continue
+
         sarif_report = read_json_if_exists(root / relative_path)
         add_fallback_finding(findings, sarif_report, relative_path, scanner_name, mode)
         if isinstance(sarif_report, dict):
@@ -582,6 +596,86 @@ def evaluate_security_tool_outputs(
                             alert.get("pluginid", alert.get("pluginId", alert.get("alert", "zap")))
                         ),
                     )
+
+
+def evaluate_normalized_image_policy(
+    root: Path,
+    findings: list[SecurityFinding],
+    mode: PolicyMode,
+) -> dict[str, Any]:
+    """Aplica el gate sobre el inventario normalizado de la imagen."""
+    image_policy = evaluate_image_vulnerability_policy(root)
+
+    if image_policy["status"] != "available":
+        severity = RiskLevel.LOW if mode == "demo" else RiskLevel.HIGH
+
+        add_finding(
+            findings,
+            "POLICY022",
+            severity,
+            (
+                "No existe el inventario normalizado de "
+                "vulnerabilidades de la imagen."
+            ),
+            "container-image",
+            (
+                "Ejecuta scan-image para generar los JSON nativos "
+                "y el reporte normalizado."
+            ),
+            evidence=NORMALIZED_REPORT_PATH,
+        )
+
+        return image_policy
+
+    for vulnerability in image_policy["actionable"]:
+        stable_versions = ", ".join(
+            vulnerability["stable_fixed_versions"]
+        )
+
+        add_finding(
+            findings,
+            "POLICY023",
+            RiskLevel.HIGH,
+            (
+                "La imagen contiene una vulnerabilidad con "
+                "corrección estable para la línea utilizada."
+            ),
+            "container-image",
+            (
+                "Actualiza el componente o la imagen base a una "
+                f"versión corregida: {stable_versions}."
+            ),
+            evidence=vulnerability["identity"],
+        )
+
+    review_required = image_policy["review_required"]
+
+    if review_required:
+        severity = (
+            RiskLevel.HIGH
+            if mode == "strict"
+            else RiskLevel.MEDIUM
+        )
+
+        add_finding(
+            findings,
+            "POLICY024",
+            severity,
+            (
+                f"La imagen contiene {len(review_required)} "
+                "vulnerabilidades upstream sin una corrección "
+                "estable aplicable a la línea utilizada."
+            ),
+            "container-image",
+            (
+                "Mantén las CVE visibles, revisa actualizaciones "
+                "del proveedor y formaliza la aceptación antes "
+                "de una release estricta."
+            ),
+            evidence=NORMALIZED_REPORT_PATH,
+        )
+
+    return image_policy
 
 
 def flatten_evidence_score(evidence: dict[str, Any]) -> float:
@@ -671,6 +765,9 @@ def evaluate_policy(root: Path | None = None, mode: str | None = None) -> dict[s
     )
 
     evaluate_security_tool_outputs(base, findings, policy_mode)
+    image_vulnerability_policy = evaluate_normalized_image_policy(
+        base, findings, policy_mode
+    )
     scanner_exit_evidence = evaluate_scanner_exit_evidence(base, findings, policy_mode)
     evidence = evaluate_recommended_evidence(base, findings, policy_mode)
     counts = count_findings(findings)
@@ -686,6 +783,7 @@ def evaluate_policy(root: Path | None = None, mode: str | None = None) -> dict[s
         "evidence_completeness": evidence,
         "evidence_completeness_score": flatten_evidence_score(evidence),
         "scanner_exit_evidence": scanner_exit_evidence,
+        "image_vulnerability_policy": image_vulnerability_policy,
         "blocking_issues": counts["high_or_critical"],
         "warnings": counts.get("medium", 0) + counts.get("low", 0),
         "finding_counts": counts,

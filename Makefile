@@ -54,7 +54,7 @@ ensure-tools:
 	@which trivy >/dev/null || echo "Opcional: instalar trivy: https://github.com/aquasecurity/trivy"
 	@which semgrep >/dev/null || echo "Instalar semgrep: pip install semgrep"
 	@which bandit >/dev/null || echo "Instalar bandit: pip install bandit"
-	@which pip-audit >/dev/null || echo "Instalar pip-audit: pip install pip-audit"
+	@$(PY) -m pip_audit --version >/dev/null 2>&1 || echo "Instalar pip-audit: $(PY) -m pip install pip-audit"
 	@which gitleaks >/dev/null || echo "Instalar gitleaks para secret-scan"
 	@which scorecard >/dev/null || echo "Instalar scorecard CLI o usar GitHub Action oficial"
 	@which in-toto-run >/dev/null || echo "Instalar in-toto: pip install in-toto"
@@ -74,7 +74,7 @@ venv:
 
 build:
 	@echo ">> Construyendo imagen Docker $(IMAGE)"
-	docker build -t $(IMAGE) -f docker/Dockerfile .
+	docker build --pull -t $(IMAGE) -f docker/Dockerfile .
 
 sandbox-image:
 	@echo ">> Construyendo imagen de sandbox MCP skillchain-sandbox:dev"
@@ -96,7 +96,8 @@ unit-sandbox:
 
 lint: venv
 	@echo ">> Ejecutando lint con ruff"
-	$(PY) -m ruff check src tests
+	$(PY) -m ruff check src tests \
+		scripts/normalize_image_vulnerabilities.py
 
 type-check: venv
 	@echo ">> Ejecutando type-check con mypy"
@@ -120,20 +121,20 @@ package-build: venv
 
 sast: prepare-dirs
 	@echo ">> SAST: ejecutando bandit y semgrep sobre el código fuente"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); bandit -r src -f json -o artifacts/bandit.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool bandit --exit-code $$rc --artifact artifacts/bandit.json --output .evidence/bandit-exit.json --command "bandit -r src -f json -o artifacts/bandit.json" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); $(PY) -m bandit -r src -f json -o artifacts/bandit.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool bandit --exit-code $$rc --artifact artifacts/bandit.json --output .evidence/bandit-exit.json --command "bandit -r src -f json -o artifacts/bandit.json" --started-at $$START; exit 0
 	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); semgrep --config .semgrep.yml --error --json --output artifacts/semgrep.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool semgrep --exit-code $$rc --artifact artifacts/semgrep.json --output .evidence/semgrep-exit.json --command "semgrep --config .semgrep.yml --error --json --output artifacts/semgrep.json" --started-at $$START; exit 0
 
 # SCA: Análisis de dependencias (Software Composition Analysis)
 
 sca: prepare-dirs
 	@echo ">> SCA: auditando dependencias runtime/dev/mcp con pip-audit"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); pip-audit -r requirements.txt -f json -o artifacts/pip-audit-runtime.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool pip-audit-runtime --exit-code $$rc --artifact artifacts/pip-audit-runtime.json --output .evidence/pip-audit-runtime-exit.json --command "pip-audit -r requirements.txt" --started-at $$START; exit 0
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); pip-audit -r requirements-dev.txt -f json -o artifacts/pip-audit-dev.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool pip-audit-dev --exit-code $$rc --artifact artifacts/pip-audit-dev.json --output .evidence/pip-audit-dev-exit.json --command "pip-audit -r requirements-dev.txt" --started-at $$START; exit 0
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); pip-audit -r requirements-mcp.txt -f json -o artifacts/pip-audit-mcp.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool pip-audit-mcp --exit-code $$rc --artifact artifacts/pip-audit-mcp.json --output .evidence/pip-audit-mcp-exit.json --command "pip-audit -r requirements-mcp.txt" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); $(PY) -m pip_audit -r requirements.txt -f json -o artifacts/pip-audit-runtime.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool pip-audit-runtime --exit-code $$rc --artifact artifacts/pip-audit-runtime.json --output .evidence/pip-audit-runtime-exit.json --command "pip-audit -r requirements.txt" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); $(PY) -m pip_audit -r requirements-dev.txt -f json -o artifacts/pip-audit-dev.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool pip-audit-dev --exit-code $$rc --artifact artifacts/pip-audit-dev.json --output .evidence/pip-audit-dev-exit.json --command "pip-audit -r requirements-dev.txt" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); $(PY) -m pip_audit -r requirements-mcp.txt -f json -o artifacts/pip-audit-mcp.json; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool pip-audit-mcp --exit-code $$rc --artifact artifacts/pip-audit-mcp.json --output .evidence/pip-audit-mcp-exit.json --command "pip-audit -r requirements-mcp.txt" --started-at $$START; exit 0
 
 secret-scan: prepare-dirs
 	@echo ">> Secret scanning con gitleaks"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); gitleaks detect --source . --no-git --report-format sarif --report-path artifacts/gitleaks.sarif; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool gitleaks --exit-code $$rc --artifact artifacts/gitleaks.sarif --output .evidence/gitleaks-exit.json --command "gitleaks detect --source . --no-git" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); gitleaks detect --source . --redact --report-format sarif --report-path artifacts/gitleaks.sarif; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool gitleaks --exit-code $$rc --artifact artifacts/gitleaks.sarif --output .evidence/gitleaks-exit.json --command "gitleaks detect --source . --redact" --started-at $$START; exit 0
 
 # SBOM: Bill of Materials del proyecto y de la imagen
 
@@ -149,8 +150,17 @@ sbom: prepare-dirs
 scan-image: prepare-dirs
 	@echo ">> Analizando vulnerabilidades de la imagen con grype (salida SARIF)"
 	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); grype $(IMAGE) -o sarif > artifacts/grype-image.sarif; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool grype --exit-code $$rc --artifact artifacts/grype-image.sarif --output .evidence/grype-exit.json --command "grype $(IMAGE) -o sarif" --started-at $$START; exit 0
+	@echo ">> Generando JSON nativo de Grype"
+	grype $(IMAGE) -o json > artifacts/grype-image.json
 	@echo ">> Escaneo de imagen con trivy (salida SARIF)"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); trivy image --format sarif --output artifacts/trivy-image.sarif $(IMAGE); rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool trivy --exit-code $$rc --artifact artifacts/trivy-image.sarif --output .evidence/trivy-exit.json --command "trivy image --format sarif --output artifacts/trivy-image.sarif $(IMAGE)" --started-at $$START; exit 0
+	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); trivy image --scanners vuln --format sarif --output artifacts/trivy-image.sarif $(IMAGE); rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool trivy --exit-code $$rc --artifact artifacts/trivy-image.sarif --output .evidence/trivy-exit.json --command "trivy image --scanners vuln --format sarif --output artifacts/trivy-image.sarif $(IMAGE)" --started-at $$START; exit 0
+	@echo ">> Generando JSON nativo de Trivy"
+	trivy image --scanners vuln --format json --output artifacts/trivy-image.json $(IMAGE)
+	@echo ">> Normalizando y deduplicando vulnerabilidades de imagen"
+	$(PY) scripts/normalize_image_vulnerabilities.py \
+		--grype artifacts/grype-image.json \
+		--trivy artifacts/trivy-image.json \
+		--output artifacts/image-vulnerabilities-normalized.json
 
 openssf-scorecard: prepare-dirs
 	@echo ">> OpenSSF Scorecard local si el CLI está disponible"
@@ -169,11 +179,38 @@ compose-down:
 	docker compose down -v
 
 # DAST: Pruebas dinámicas con OWASP ZAP (desde contenedor)
-
 dast: prepare-dirs
 	@echo ">> DAST: ejecutando OWASP ZAP baseline contra http://127.0.0.1:8000"
-	@set +e; START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); docker run --rm -t --network host -v "$(CURDIR)/artifacts:/zap/wrk:rw" $(ZAP_IMAGE) zap-baseline.py -t http://127.0.0.1:8000 -J zap-baseline.json -r zap-report.html; rc=$$?; $(PY) -m devsecops_agent.tool_evidence --root . --tool zap --exit-code $$rc --artifact artifacts/zap-baseline.json --output .evidence/zap-exit.json --command "zap-baseline.py -t http://127.0.0.1:8000" --started-at $$START; exit 0
-
+	@set +e; \
+	START=$$(date -u +%Y-%m-%dT%H:%M:%SZ); \
+	rm -f artifacts/zap-baseline.json artifacts/zap-report.html; \
+	ZAP_WORKDIR=$$(mktemp -d); \
+	chmod 0777 "$$ZAP_WORKDIR"; \
+	trap 'rm -rf "$$ZAP_WORKDIR"' EXIT; \
+	docker run --rm -t \
+		--network host \
+		-v "$$ZAP_WORKDIR:/zap/wrk:rw" \
+		$(ZAP_IMAGE) \
+		zap-baseline.py \
+		-t http://127.0.0.1:8000 \
+		-J zap-baseline.json \
+		-r zap-report.html; \
+	rc=$$?; \
+	if [ -f "$$ZAP_WORKDIR/zap-baseline.json" ]; then \
+		cp "$$ZAP_WORKDIR/zap-baseline.json" artifacts/zap-baseline.json; \
+	fi; \
+	if [ -f "$$ZAP_WORKDIR/zap-report.html" ]; then \
+		cp "$$ZAP_WORKDIR/zap-report.html" artifacts/zap-report.html; \
+	fi; \
+	$(PY) -m devsecops_agent.tool_evidence \
+		--root . \
+		--tool zap \
+		--exit-code $$rc \
+		--artifact artifacts/zap-baseline.json \
+		--output .evidence/zap-exit.json \
+		--command "zap-baseline.py -t http://127.0.0.1:8000" \
+		--started-at $$START; \
+	exit 0
 # Kubernetes local con kind
 
 kind-up:
@@ -268,8 +305,22 @@ security-local: demo-local
 
 # Perfil 2: CI de seguridad con scanners reales. No acepta fallback en scanners principales.
 security-ci: lint type-check coverage integration-tests package-build build skills-validate skill-scan mcp-audit agent-eval benchmark sast sca secret-scan sbom scan-image openssf-scorecard compose-up dast compose-down
-	@$(MAKE) POLICY_MODE=ci policy-check
-	@$(MAKE) POLICY_MODE=ci evidence-pack dashboard product-status
+	@set +e; \
+	$(MAKE) POLICY_MODE=ci policy-check; \
+	policy_rc=$$?; \
+	$(MAKE) POLICY_MODE=ci evidence-pack; \
+	pack_rc=$$?; \
+	$(MAKE) POLICY_MODE=ci dashboard product-status; \
+	aux_rc=$$?; \
+	if [ $$pack_rc -ne 0 ]; then \
+		echo "Falló la generación del evidence pack"; \
+		exit $$pack_rc; \
+	fi; \
+	if [ $$aux_rc -ne 0 ]; then \
+		echo "Falló la generación del estado del producto"; \
+		exit $$aux_rc; \
+	fi; \
+	exit $$policy_rc
 
 # Perfil 3: verificación estricta de release. No acepta evidencia fallback ni evidencia faltante.
 release-verify: lint type-check coverage integration-tests package-build build skills-validate skill-scan mcp-audit agent-eval benchmark sast sca secret-scan sbom scan-image openssf-scorecard compose-up dast compose-down
