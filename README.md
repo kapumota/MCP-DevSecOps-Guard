@@ -18,8 +18,15 @@ SkillChain-MCP Guard es un framework local-first para auditar skills, tools MCP 
 | Perfil | Comando | Uso |
 |---|---|---|
 | Demo local | `make demo-local` | Demostración reproducible; puede quedar en `WARN`. |
-| CI seguridad | `make security-ci` | Scanners reales, evidence pack y policy gate `ci`. |
+| CI presentación temporal | Workflow `ci-devsecops.yml` | Ejecuta controles diagnósticos sin bloquear el merge. |
+| CI seguridad completa | `make security-ci` | Scanners reales, evidence pack y policy gate `ci`; ejecución manual mientras dure la presentación. |
 | Release estricto | `make release-verify` | No acepta fallback ni evidencia faltante. |
+
+#### Estado temporal del workflow
+
+Para disponer de una base estable de presentación, el workflow principal usa temporalmente un perfil no bloqueante. Ejecuta compilación, pruebas, Ruff, mypy, Bandit, Semgrep y generación del dashboard cuando las herramientas pueden instalarse, pero registra sus códigos como diagnóstico y finaliza correctamente. El smoke Docker conserva el nombre del check, aunque su ejecución pesada queda diferida.
+
+Este perfil no equivale a una certificación de seguridad ni a `make release-verify`. Los controles completos continúan disponibles mediante `make security-ci` y `make release-verify` para su rehabilitación posterior.
 
 #### Comandos esenciales
 
