@@ -1,11 +1,11 @@
 # Dependencias de desarrollo para análisis de seguridad, pruebas y utilidades HTTP.
+setuptools==83.0.0
 bandit==1.7.9
-semgrep==1.86.0
 pip-audit==2.7.3
-pytest==8.3.3
+pytest==9.0.3
 coverage==7.6.1
 ruff==0.6.9
 mypy==1.11.2
-requests==2.32.3
+requests==2.33.0
 
 build==1.2.2.post1

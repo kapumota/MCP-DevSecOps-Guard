@@ -13,7 +13,6 @@ from .config import MCP_AUDIT_REPORT_PATH, REPO_ROOT
 from .report_writer import write_json_report
 from .security_models import RiskLevel, ScanStatus, SecurityFinding
 
-
 MCP_DECORATORS: frozenset[str] = frozenset({"tool", "resource", "prompt"})
 DIRECT_EXECUTION_CALLS: frozenset[str] = frozenset(
     {
@@ -92,7 +91,7 @@ def discover_mcp_components(source_path: Path) -> list[dict[str, Any]]:
     components: list[dict[str, Any]] = []
 
     for node in ast.walk(tree):
-        if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+        if not isinstance(node, ast.FunctionDef | ast.AsyncFunctionDef):
             continue
         for decorator in node.decorator_list:
             kind = mcp_decorator_kind(decorator)
@@ -144,19 +143,25 @@ def analyze_mcp_controls(root: Path) -> dict[str, bool]:
     commands_text = read_text_if_exists(root / "src/devsecops_agent/commands.py")
     artifacts_text = read_text_if_exists(root / "src/devsecops_agent/artifacts.py")
     config_text = read_text_if_exists(root / "src/devsecops_agent/config.py")
-    rbac_text = read_text_if_exists(root / "src/devsecops_agent/rbac.py")
+    read_text_if_exists(root / "src/devsecops_agent/rbac.py")
     sandbox_text = read_text_if_exists(root / "src/devsecops_agent/sandbox.py")
     mcp_server_text = read_text_if_exists(root / "src/devsecops_agent/mcp_server.py")
 
     return {
-        "make_target_allowlist": "ALLOWED_MAKE_TARGETS" in config_text and "validate_make_target" in commands_text,
-        "timeout_validation": "validate_timeout" in commands_text and "MAX_TIMEOUT_SECONDS" in commands_text,
+        "make_target_allowlist": "ALLOWED_MAKE_TARGETS" in config_text
+        and "validate_make_target" in commands_text,
+        "timeout_validation": "validate_timeout" in commands_text
+        and "MAX_TIMEOUT_SECONDS" in commands_text,
         "shell_false_execution": "shell=False" in commands_text or "shell=False" in sandbox_text,
-        "artifact_path_validation": "safe_artifact_path" in artifacts_text and "allowed_base_dirs" in artifacts_text,
+        "artifact_path_validation": "safe_artifact_path" in artifacts_text
+        and "allowed_base_dirs" in artifacts_text,
         "artifact_read_limit": "MAX_TEXT_BYTES" in artifacts_text,
-        "rbac_authorization": "authorize_tool_invocation" in commands_text and "roles" in read_text_if_exists(root / "config/rbac.json"),
-        "sandbox_execution": "run_sandboxed_make_target" in commands_text and "SandboxRunner" in sandbox_text,
-        "mcp_tool_authorization": "require_mcp_tool" in mcp_server_text and "authorize_tool_invocation" in mcp_server_text,
+        "rbac_authorization": "authorize_tool_invocation" in commands_text
+        and "roles" in read_text_if_exists(root / "config/rbac.json"),
+        "sandbox_execution": "run_sandboxed_make_target" in commands_text
+        and "SandboxRunner" in sandbox_text,
+        "mcp_tool_authorization": "require_mcp_tool" in mcp_server_text
+        and "authorize_tool_invocation" in mcp_server_text,
     }
 
 
@@ -182,7 +187,9 @@ def add_finding(
     )
 
 
-def evaluate_mcp_findings(components: Sequence[dict[str, Any]], controls: dict[str, bool]) -> list[SecurityFinding]:
+def evaluate_mcp_findings(
+    components: Sequence[dict[str, Any]], controls: dict[str, bool]
+) -> list[SecurityFinding]:
     """Evalúa hallazgos sobre la superficie MCP descubierta."""
     findings: list[SecurityFinding] = []
 
@@ -281,7 +288,11 @@ def evaluate_mcp_findings(components: Sequence[dict[str, Any]], controls: dict[s
                     component_name,
                     "Obtén el rol desde identidad autenticada, variable de entorno controlada o política externa, no desde argumentos de la tool.",
                 )
-            if component["name"] != "run_devsecops_check" and "require_mcp_tool" not in component.get("call_names", []):
+            if component[
+                "name"
+            ] != "run_devsecops_check" and "require_mcp_tool" not in component.get(
+                "call_names", []
+            ):
                 add_finding(
                     findings,
                     "MCP010",
@@ -290,7 +301,11 @@ def evaluate_mcp_findings(components: Sequence[dict[str, Any]], controls: dict[s
                     component_name,
                     "Invoca require_mcp_tool(nombre_de_tool) al inicio de cada tool expuesta por MCP.",
                 )
-            if component["name"] == "run_devsecops_check" and "require_mcp_tool" not in component.get("call_names", []):
+            if component[
+                "name"
+            ] == "run_devsecops_check" and "require_mcp_tool" not in component.get(
+                "call_names", []
+            ):
                 add_finding(
                     findings,
                     "MCP010",
@@ -324,10 +339,20 @@ def determine_status(findings: Sequence[SecurityFinding]) -> ScanStatus:
     return ScanStatus.PASS
 
 
-def determine_overall_risk(components: Sequence[dict[str, Any]], findings: Sequence[SecurityFinding]) -> str:
+def determine_overall_risk(
+    components: Sequence[dict[str, Any]], findings: Sequence[SecurityFinding]
+) -> str:
     """Calcula riesgo agregado combinando riesgo inherente y hallazgos."""
-    ordered = {RiskLevel.LOW.value: 0, RiskLevel.MEDIUM.value: 1, RiskLevel.HIGH.value: 2, RiskLevel.CRITICAL.value: 3}
-    values = [ordered.get(str(component.get("risk_level", RiskLevel.LOW.value)), 0) for component in components]
+    ordered = {
+        RiskLevel.LOW.value: 0,
+        RiskLevel.MEDIUM.value: 1,
+        RiskLevel.HIGH.value: 2,
+        RiskLevel.CRITICAL.value: 3,
+    }
+    values = [
+        ordered.get(str(component.get("risk_level", RiskLevel.LOW.value)), 0)
+        for component in components
+    ]
     values.extend(ordered.get(finding.severity, 0) for finding in findings)
     if not values:
         return RiskLevel.HIGH.value
@@ -338,7 +363,9 @@ def determine_overall_risk(components: Sequence[dict[str, Any]], findings: Seque
     return RiskLevel.LOW.value
 
 
-def audit_mcp_server(root: Path | None = None, source: str = "src/devsecops_agent/mcp_server.py") -> dict[str, Any]:
+def audit_mcp_server(
+    root: Path | None = None, source: str = "src/devsecops_agent/mcp_server.py"
+) -> dict[str, Any]:
     """Ejecuta auditoría estática sobre el servidor MCP del repositorio."""
     base = (root or REPO_ROOT).resolve()
     source_path = (base / source).resolve()
@@ -395,11 +422,23 @@ def write_audit_report(report: dict[str, Any], output_path: Path, root: Path | N
 
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser CLI del auditor MCP."""
-    parser = argparse.ArgumentParser(description="Audita tools, resources y prompts MCP para detectar exposición insegura.")
+    parser = argparse.ArgumentParser(
+        description="Audita tools, resources y prompts MCP para detectar exposición insegura."
+    )
     parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a auditar.")
-    parser.add_argument("--source", default="src/devsecops_agent/mcp_server.py", help="Ruta del archivo fuente del servidor MCP.")
-    parser.add_argument("--output", default=MCP_AUDIT_REPORT_PATH, help="Ruta de salida del reporte JSON.")
-    parser.add_argument("--fail-on-high", action="store_true", help="Devuelve estado 2 si existen hallazgos altos o críticos.")
+    parser.add_argument(
+        "--source",
+        default="src/devsecops_agent/mcp_server.py",
+        help="Ruta del archivo fuente del servidor MCP.",
+    )
+    parser.add_argument(
+        "--output", default=MCP_AUDIT_REPORT_PATH, help="Ruta de salida del reporte JSON."
+    )
+    parser.add_argument(
+        "--fail-on-high",
+        action="store_true",
+        help="Devuelve estado 2 si existen hallazgos altos o críticos.",
+    )
     return parser
 
 

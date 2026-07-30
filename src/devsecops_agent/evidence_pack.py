@@ -7,7 +7,7 @@ import hashlib
 import json
 import tarfile
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -93,7 +93,7 @@ def build_evidence_summary(root: Path, files: Sequence[Path]) -> str:
     lines = [
         "# Resumen de evidencia SkillChain-MCP Guard",
         "",
-        f"Generado UTC: {datetime.now(timezone.utc).isoformat()}",
+        f"Generado UTC: {datetime.now(UTC).isoformat()}",
         f"Estado de política: {status}",
         f"Modo de política: {mode}",
         f"Problemas bloqueantes: {blocking}",
@@ -161,7 +161,11 @@ def write_json(root: Path, relative_path: str, payload: dict[str, Any]) -> Path:
 
 def refresh_auxiliary_evidence(root: Path) -> None:
     """Genera summary, checksums y provenance antes de empaquetar."""
-    initial_files = [path for path in collect_evidence_files(root) if path.relative_to(root).as_posix() not in AUXILIARY_EVIDENCE_FILES]
+    initial_files = [
+        path
+        for path in collect_evidence_files(root)
+        if path.relative_to(root).as_posix() not in AUXILIARY_EVIDENCE_FILES
+    ]
     write_text(root, "artifacts/evidence-summary.md", build_evidence_summary(root, initial_files))
     provenance_files = initial_files + [root / "artifacts/evidence-summary.md"]
     write_json(root, "artifacts/provenance.json", build_provenance(root, provenance_files))
@@ -204,7 +208,9 @@ def add_file_to_tar(archive: tarfile.TarFile, path: Path, arcname: str) -> None:
         archive.addfile(info, handle)
 
 
-def create_evidence_pack(root: Path | None = None, output_path: Path | None = None) -> dict[str, Any]:
+def create_evidence_pack(
+    root: Path | None = None, output_path: Path | None = None
+) -> dict[str, Any]:
     """Crea un tar.gz con evidencias y un manifiesto sidecar consistente."""
     base = resolve_repo_root(root)
     ensure_artifact_dirs(base)
@@ -212,7 +218,7 @@ def create_evidence_pack(root: Path | None = None, output_path: Path | None = No
 
     files = collect_evidence_files(base)
     if output_path is None:
-        timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        timestamp = datetime.now(UTC).strftime("%Y%m%d-%H%M%S")
         output_path = base / "artifacts" / f"evidence-pack-{timestamp}.tar.gz"
     elif not output_path.is_absolute():
         output_path = base / output_path
@@ -227,8 +233,12 @@ def create_evidence_pack(root: Path | None = None, output_path: Path | None = No
     final_manifest["manifest_path"] = manifest_path.relative_to(base).as_posix()
     final_manifest["pack_path"] = output_path.relative_to(base).as_posix()
     final_manifest["pack_sha256"] = sha256_file(output_path)
-    final_manifest["manifest_design"] = "sidecar_manifest_excludes_itself_and_previous_packs_to_avoid_self_hash_cycles"
-    final_manifest["verification_command"] = f"skillchain evidence verify {final_manifest['pack_path']} --manifest {final_manifest['manifest_path']}"
+    final_manifest["manifest_design"] = (
+        "sidecar_manifest_excludes_itself_and_previous_packs_to_avoid_self_hash_cycles"
+    )
+    final_manifest["verification_command"] = (
+        f"skillchain evidence verify {final_manifest['pack_path']} --manifest {final_manifest['manifest_path']}"
+    )
     write_manifest(base, final_manifest, manifest_path)
 
     return final_manifest
@@ -248,47 +258,98 @@ def verify_evidence_pack(root: Path | None, pack_path: Path, manifest_path: Path
     findings: list[dict[str, str]] = []
 
     if not pack.is_file():
-        findings.append({"severity": "high", "message": "El evidence pack no existe.", "evidence": str(pack)})
+        findings.append(
+            {"severity": "high", "message": "El evidence pack no existe.", "evidence": str(pack)}
+        )
     if not manifest_file.is_file():
-        findings.append({"severity": "high", "message": "Manifest sidecar no existe.", "evidence": str(manifest_file)})
+        findings.append(
+            {
+                "severity": "high",
+                "message": "Manifest sidecar no existe.",
+                "evidence": str(manifest_file),
+            }
+        )
     if findings:
         return {"status": "FAIL", "findings": findings}
 
     try:
         manifest = json.loads(manifest_file.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        return {"status": "FAIL", "findings": [{"severity": "high", "message": "Manifest JSON inválido.", "evidence": str(exc)}]}
+        return {
+            "status": "FAIL",
+            "findings": [
+                {"severity": "high", "message": "Manifest JSON inválido.", "evidence": str(exc)}
+            ],
+        }
 
     expected_pack_sha = manifest.get("pack_sha256")
     actual_pack_sha = sha256_file(pack)
     if expected_pack_sha != actual_pack_sha:
-        findings.append({"severity": "high", "message": "SHA-256 del pack no coincide.", "evidence": "pack_sha256"})
+        findings.append(
+            {
+                "severity": "high",
+                "message": "SHA-256 del pack no coincide.",
+                "evidence": "pack_sha256",
+            }
+        )
 
-    expected_entries = {
-        entry.get("relative_path"): entry
-        for entry in manifest.get("files", [])
-        if isinstance(entry, dict) and isinstance(entry.get("relative_path"), str)
-    }
+    expected_entries: dict[str, dict[str, Any]] = {}
+    manifest_files = manifest.get("files", [])
+    if isinstance(manifest_files, list):
+        for entry in manifest_files:
+            if not isinstance(entry, dict):
+                continue
+
+            relative_path = entry.get("relative_path")
+            if not isinstance(relative_path, str) or not relative_path:
+                continue
+            expected_entries[relative_path] = entry
 
     try:
         with tarfile.open(pack, "r:gz") as archive:
             members = {member.name: member for member in archive.getmembers() if member.isfile()}
             for name, entry in expected_entries.items():
                 if not safe_member_name(name):
-                    findings.append({"severity": "high", "message": "Ruta insegura en manifest.", "evidence": name})
+                    findings.append(
+                        {
+                            "severity": "high",
+                            "message": "Ruta insegura en manifest.",
+                            "evidence": name,
+                        }
+                    )
                     continue
                 member = members.get(name)
                 if member is None:
-                    findings.append({"severity": "high", "message": "Archivo declarado no está en el pack.", "evidence": name})
+                    findings.append(
+                        {
+                            "severity": "high",
+                            "message": "Archivo declarado no está en el pack.",
+                            "evidence": name,
+                        }
+                    )
                     continue
                 extracted = archive.extractfile(member)
                 data = extracted.read() if extracted is not None else b""
                 if len(data) != int(entry.get("size_bytes", -1)):
-                    findings.append({"severity": "high", "message": "Tamaño no coincide.", "evidence": name})
+                    findings.append(
+                        {"severity": "high", "message": "Tamaño no coincide.", "evidence": name}
+                    )
                 if sha256_bytes(data) != entry.get("sha256"):
-                    findings.append({"severity": "high", "message": "SHA-256 de archivo no coincide.", "evidence": name})
+                    findings.append(
+                        {
+                            "severity": "high",
+                            "message": "SHA-256 de archivo no coincide.",
+                            "evidence": name,
+                        }
+                    )
     except (tarfile.TarError, OSError) as exc:
-        findings.append({"severity": "high", "message": "No se pudo leer el evidence pack.", "evidence": str(exc)})
+        findings.append(
+            {
+                "severity": "high",
+                "message": "No se pudo leer el evidence pack.",
+                "evidence": str(exc),
+            }
+        )
 
     return {
         "status": "FAIL" if findings else "PASS",
@@ -301,7 +362,9 @@ def verify_evidence_pack(root: Path | None, pack_path: Path, manifest_path: Path
 
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser CLI del empaquetador de evidencias."""
-    parser = argparse.ArgumentParser(description="Crea o verifica un paquete reproducible de evidencia DevSecOps.")
+    parser = argparse.ArgumentParser(
+        description="Crea o verifica un paquete reproducible de evidencia DevSecOps."
+    )
     parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a empaquetar.")
     subparsers = parser.add_subparsers(dest="command")
 
@@ -310,7 +373,9 @@ def build_parser() -> argparse.ArgumentParser:
 
     verify_parser = subparsers.add_parser("verify", help="Verifica el evidence pack.")
     verify_parser.add_argument("pack", help="Ruta al evidence-pack tar.gz.")
-    verify_parser.add_argument("--manifest", default=EVIDENCE_MANIFEST_PATH, help="Ruta al evidence-manifest.json.")
+    verify_parser.add_argument(
+        "--manifest", default=EVIDENCE_MANIFEST_PATH, help="Ruta al evidence-manifest.json."
+    )
 
     # Backward-compatible single-command mode: python -m ...evidence_pack --output file.tar.gz
     parser.add_argument("--output", default=None, help=argparse.SUPPRESS)
@@ -323,7 +388,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     root = Path(args.root).resolve()
     command = args.command or "create"
     if command == "verify":
-        result = verify_evidence_pack(root=root, pack_path=Path(args.pack), manifest_path=Path(args.manifest))
+        result = verify_evidence_pack(
+            root=root, pack_path=Path(args.pack), manifest_path=Path(args.manifest)
+        )
         print(json.dumps(result, ensure_ascii=False))
         return 0 if result["status"] == "PASS" else 2
 

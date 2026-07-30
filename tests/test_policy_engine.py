@@ -1,8 +1,13 @@
 import json
+import os
 from pathlib import Path
 
 from devsecops_agent.config import MCP_AUDIT_REPORT_PATH, SKILL_REPORT_PATH
-from devsecops_agent.policy_engine import SCANNER_EXIT_EVIDENCE, evaluate_policy, write_policy_report
+from devsecops_agent.policy_engine import (
+    SCANNER_EXIT_EVIDENCE,
+    evaluate_policy,
+    write_policy_report,
+)
 from devsecops_agent.tool_evidence import build_tool_exit_record
 
 
@@ -13,7 +18,20 @@ def write_json(root: Path, relative_path: str, payload: dict) -> None:
 
 
 def passing_report() -> dict:
-    return {"status": "PASS", "finding_counts": {"high_or_critical": 0, "total": 0}}
+    report: dict = {
+        "status": "PASS",
+        "finding_counts": {
+            "high_or_critical": 0,
+            "total": 0,
+        },
+    }
+
+    run_id = os.environ.get("SKILLCHAIN_RUN_ID")
+
+    if run_id:
+        report["run_id"] = run_id
+
+    return report
 
 
 def test_policy_engine_fails_when_sbom_evidence_is_missing(tmp_path: Path):
@@ -89,6 +107,18 @@ def write_required_policy_inputs(root: Path) -> None:
     write_json(root, "artifacts/sbom-image.json", {"bomFormat": "CycloneDX"})
     write_json(root, "artifacts/grype-image.sarif", {"runs": [{"results": []}]})
     write_json(root, "artifacts/trivy-image.sarif", {"runs": [{"results": []}]})
+    write_json(
+        root,
+        "artifacts/image-vulnerabilities-normalized.json",
+        {
+            "summary": {
+                "unique_high_or_critical": 0,
+                "critical": 0,
+                "high": 0,
+            },
+            "vulnerabilities": [],
+        },
+    )
     write_json(root, "artifacts/gitleaks.sarif", {"runs": [{"results": []}]})
     write_json(root, "artifacts/scorecard.json", {"score": 10.0, "checks": []})
     write_json(root, "artifacts/zap-baseline.json", {"site": []})
@@ -99,6 +129,9 @@ def write_required_policy_inputs(root: Path) -> None:
 def test_external_scanner_high_findings_block_by_default(tmp_path: Path, monkeypatch):
     monkeypatch.delenv("STRICT_POLICY", raising=False)
     write_required_policy_inputs(tmp_path)
+    (
+        tmp_path / "artifacts/image-vulnerabilities-normalized.json"
+    ).unlink()
     write_json(
         tmp_path,
         "artifacts/grype-image.sarif",
@@ -115,6 +148,9 @@ def test_external_scanner_high_findings_block_by_default(tmp_path: Path, monkeyp
 def test_external_scanner_findings_block_in_strict_policy(tmp_path: Path, monkeypatch):
     monkeypatch.setenv("STRICT_POLICY", "1")
     write_required_policy_inputs(tmp_path)
+    (
+        tmp_path / "artifacts/image-vulnerabilities-normalized.json"
+    ).unlink()
     write_json(
         tmp_path,
         "artifacts/grype-image.sarif",
@@ -156,7 +192,9 @@ def test_pip_audit_dev_vulnerability_blocks_policy(tmp_path: Path, monkeypatch):
     report = evaluate_policy(root=tmp_path)
 
     assert report["status"] == "FAIL"
-    assert any("pip-audit-dev.json" in finding.get("evidence", "") for finding in report["findings"])
+    assert any(
+        "pip-audit-dev.json" in finding.get("evidence", "") for finding in report["findings"]
+    )
 
 
 def test_strict_policy_blocks_fallback_evidence(tmp_path: Path, monkeypatch):
@@ -212,9 +250,164 @@ def test_ci_policy_blocks_missing_scanner_exit_evidence(tmp_path: Path):
 
 def test_ci_policy_blocks_stale_scanner_artifact_hash(tmp_path: Path):
     write_required_policy_inputs(tmp_path)
-    (tmp_path / "artifacts/bandit.json").write_text(json.dumps({"results": [{"issue_severity": "LOW"}]}), encoding="utf-8")
+    (tmp_path / "artifacts/bandit.json").write_text(
+        json.dumps({"results": [{"issue_severity": "LOW"}]}), encoding="utf-8"
+    )
 
     report = evaluate_policy(root=tmp_path, mode="ci")
 
     assert report["status"] == "FAIL"
     assert any(finding["rule_id"] == "POLICY018" for finding in report["findings"])
+
+
+def test_ci_warns_for_upstream_unfixed_image_vulnerability(
+    tmp_path: Path,
+):
+    write_required_policy_inputs(tmp_path)
+    write_json(
+        tmp_path,
+        "artifacts/image-vulnerabilities-normalized.json",
+        {
+            "summary": {
+                "unique_high_or_critical": 1,
+                "critical": 1,
+                "high": 0,
+            },
+            "vulnerabilities": [
+                {
+                    "vulnerability_id": "CVE-DEMO-UPSTREAM",
+                    "package_name": "perl-base",
+                    "installed_version": "1.0",
+                    "severity": "CRITICAL",
+                    "fixed_versions": [],
+                    "statuses": ["not_fixed"],
+                    "sources": ["grype", "trivy"],
+                }
+            ],
+        },
+    )
+
+    report = evaluate_policy(root=tmp_path, mode="ci")
+
+    assert report["status"] == "WARN"
+    assert report["blocking_issues"] == 0
+    assert report["decision"]["allow_merge"] is True
+    assert report["decision"]["requires_human_review"] is True
+    assert (
+        report["image_vulnerability_policy"]["summary"]["actionable"]
+        == 0
+    )
+    assert (
+        report["image_vulnerability_policy"]["summary"][
+            "review_required"
+        ]
+        == 1
+    )
+
+
+def test_ci_blocks_python_vulnerability_with_same_line_fix(
+    tmp_path: Path,
+):
+    write_required_policy_inputs(tmp_path)
+    write_json(
+        tmp_path,
+        "artifacts/image-vulnerabilities-normalized.json",
+        {
+            "summary": {
+                "unique_high_or_critical": 1,
+                "critical": 0,
+                "high": 1,
+            },
+            "vulnerabilities": [
+                {
+                    "vulnerability_id": "CVE-DEMO-FIXED",
+                    "package_name": "python",
+                    "installed_version": "3.13.13",
+                    "severity": "HIGH",
+                    "fixed_versions": ["3.13.14"],
+                    "statuses": ["fixed"],
+                    "sources": ["grype"],
+                }
+            ],
+        },
+    )
+
+    report = evaluate_policy(root=tmp_path, mode="ci")
+
+    assert report["status"] == "FAIL"
+    assert report["blocking_issues"] >= 1
+    assert report["decision"]["allow_merge"] is False
+    assert (
+        report["image_vulnerability_policy"]["summary"]["actionable"]
+        == 1
+    )
+
+
+def test_ci_reviews_python_fix_from_another_minor_line(
+    tmp_path: Path,
+):
+    write_required_policy_inputs(tmp_path)
+    write_json(
+        tmp_path,
+        "artifacts/image-vulnerabilities-normalized.json",
+        {
+            "summary": {
+                "unique_high_or_critical": 1,
+                "critical": 0,
+                "high": 1,
+            },
+            "vulnerabilities": [
+                {
+                    "vulnerability_id": "CVE-DEMO-MIGRATION",
+                    "package_name": "python",
+                    "installed_version": "3.13.14",
+                    "severity": "HIGH",
+                    "fixed_versions": ["3.14.6", "3.15.0b2"],
+                    "statuses": ["fixed"],
+                    "sources": ["grype"],
+                }
+            ],
+        },
+    )
+
+    report = evaluate_policy(root=tmp_path, mode="ci")
+
+    assert report["status"] == "WARN"
+    assert report["blocking_issues"] == 0
+    assert (
+        report["image_vulnerability_policy"]["summary"]["actionable"]
+        == 0
+    )
+
+
+def test_strict_blocks_upstream_risk_without_acceptance(
+    tmp_path: Path,
+):
+    write_required_policy_inputs(tmp_path)
+    write_json(
+        tmp_path,
+        "artifacts/image-vulnerabilities-normalized.json",
+        {
+            "summary": {
+                "unique_high_or_critical": 1,
+                "critical": 1,
+                "high": 0,
+            },
+            "vulnerabilities": [
+                {
+                    "vulnerability_id": "CVE-DEMO-STRICT",
+                    "package_name": "libc6",
+                    "installed_version": "1.0",
+                    "severity": "CRITICAL",
+                    "fixed_versions": [],
+                    "statuses": ["wont_fix"],
+                    "sources": ["grype"],
+                }
+            ],
+        },
+    )
+
+    report = evaluate_policy(root=tmp_path, mode="strict")
+
+    assert report["status"] == "FAIL"
+    assert report["blocking_issues"] >= 1

@@ -7,9 +7,8 @@ import hashlib
 import json
 import os
 import platform
-import subprocess
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +19,7 @@ from .report_writer import write_json_report
 
 def utc_now() -> str:
     """Devuelve timestamp UTC ISO-8601."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 def sha256_file(path: Path) -> str | None:
@@ -52,7 +51,9 @@ def build_tool_exit_record(
         "record_type": "scanner-exit-code",
         "tool_name": tool,
         "scanner_exit_code": int(exit_code),
-        "scanner_started_at": started_at or os.environ.get("SKILLCHAIN_TOOL_STARTED_AT") or utc_now(),
+        "scanner_started_at": started_at
+        or os.environ.get("SKILLCHAIN_TOOL_STARTED_AT")
+        or utc_now(),
         "scanner_finished_at": utc_now(),
         "run_id": os.environ.get("SKILLCHAIN_RUN_ID", "local-run"),
         "git_commit": git_commit(base),
@@ -74,7 +75,9 @@ def write_tool_exit_record(record: dict[str, Any], output: Path, root: Path | No
     return write_json_report(record, output, root=root)
 
 
-def verify_tool_exit_record(root: Path, record: dict[str, Any], relative_artifact: str) -> tuple[bool, str]:
+def verify_tool_exit_record(
+    root: Path, record: dict[str, Any], relative_artifact: str
+) -> tuple[bool, str]:
     """Verifica que el registro siga apuntando al artefacto presente en disco."""
     if not isinstance(record, dict):
         return False, "La evidencia de salida del scanner no es un objeto JSON"
@@ -94,18 +97,29 @@ def verify_tool_exit_record(root: Path, record: dict[str, Any], relative_artifac
     if expected_run_id and str(record.get("run_id")) != expected_run_id:
         return False, "El run_id de la evidencia del scanner no coincide con SKILLCHAIN_RUN_ID"
     expected_commit = git_commit(root)
-    if expected_commit != "unknown" and str(record.get("git_commit")) not in {expected_commit, "unknown"}:
+    if expected_commit != "unknown" and str(record.get("git_commit")) not in {
+        expected_commit,
+        "unknown",
+    }:
         return False, "El git_commit de la evidencia del scanner está obsoleto"
     return True, "ok"
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Registra código de salida y hash de artefacto de un scanner externo.")
+    parser = argparse.ArgumentParser(
+        description="Registra código de salida y hash de artefacto de un scanner externo."
+    )
     parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio.")
     parser.add_argument("--tool", required=True, help="Nombre del scanner.")
-    parser.add_argument("--exit-code", required=True, type=int, help="Código de salida del proceso scanner.")
-    parser.add_argument("--artifact", default="", help="Ruta del artefacto relativa al repositorio.")
-    parser.add_argument("--output", required=True, help="Ruta JSON de salida relativa al repositorio.")
+    parser.add_argument(
+        "--exit-code", required=True, type=int, help="Código de salida del proceso scanner."
+    )
+    parser.add_argument(
+        "--artifact", default="", help="Ruta del artefacto relativa al repositorio."
+    )
+    parser.add_argument(
+        "--output", required=True, help="Ruta JSON de salida relativa al repositorio."
+    )
     parser.add_argument("--command", default="", help="Comando ejecutado.")
     parser.add_argument("--started-at", default="", help="Timestamp de inicio del scanner.")
     return parser

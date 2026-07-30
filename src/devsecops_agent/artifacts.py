@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 import json
+from pathlib import Path, PurePath, PurePosixPath, PureWindowsPath
 from typing import Any
 
-from .config import ARTIFACT_DIRS, LEGACY_PIP_AUDIT_REPORT_PATH, MAX_TEXT_BYTES, PIP_AUDIT_REPORT_PATHS, REPO_ROOT
+from .config import (
+    ARTIFACT_DIRS,
+    LEGACY_PIP_AUDIT_REPORT_PATH,
+    MAX_TEXT_BYTES,
+    PIP_AUDIT_REPORT_PATHS,
+    REPO_ROOT,
+)
 from .security_models import ArtifactInfo
 
 
@@ -54,8 +60,6 @@ def safe_artifact_path(relative_path: str, root: Path | None = None) -> Path:
     return candidate
 
 
-
-
 def validate_resource_filename(filename: str) -> str:
     """Valida nombres usados por resources MCP sin permitir rutas ni traversal."""
     if not isinstance(filename, str):
@@ -76,6 +80,7 @@ def read_named_artifact_text(directory_name: str, filename: str, root: Path | No
         raise ValueError("Directorio de evidencia no permitido")
     safe_name = validate_resource_filename(filename)
     return read_artifact_text(f"{directory_name}/{safe_name}", root=root)
+
 
 def list_artifacts(root: Path | None = None) -> list[dict[str, Any]]:
     """Lista todos los archivos presentes en artifacts/ y .evidence/."""
@@ -292,7 +297,12 @@ def summarize_security_findings(root: Path | None = None) -> dict[str, Any]:
         "zap": summarize_zap(artifacts),
     }
 
-    for sbom_name in ("sbom-project.json", "sbom-image.json", "sbom-syft-project.json", "sbom-syft-image.json"):
+    for sbom_name in (
+        "sbom-project.json",
+        "sbom-image.json",
+        "sbom-syft-project.json",
+        "sbom-syft-image.json",
+    ):
         summary_name = sbom_name.removesuffix(".json").replace("sbom-syft", "sbom")
         tool_summaries[summary_name] = summarize_sbom(artifacts, sbom_name)
 

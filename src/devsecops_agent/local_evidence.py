@@ -6,7 +6,7 @@ import argparse
 import json
 import re
 from collections.abc import Sequence
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -14,19 +14,24 @@ from .artifacts import ensure_artifact_dirs, resolve_repo_root
 from .config import LEGACY_PIP_AUDIT_REPORT_PATH, PIP_AUDIT_REPORT_PATHS, REPO_ROOT
 from .report_writer import read_json_report, write_json_report
 
-
 LOCAL_EVIDENCE_GENERATOR = "skillchain-local-evidence"
 
 
 def utc_now() -> str:
     """Devuelve una marca temporal UTC serializable."""
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
-REQUIREMENT_FILES: tuple[str, ...] = ("requirements.txt", "requirements-dev.txt", "requirements-mcp.txt")
+REQUIREMENT_FILES: tuple[str, ...] = (
+    "requirements.txt",
+    "requirements-dev.txt",
+    "requirements-mcp.txt",
+)
 
 
-def parse_requirements(root: Path, filenames: tuple[str, ...] = REQUIREMENT_FILES) -> list[dict[str, str]]:
+def parse_requirements(
+    root: Path, filenames: tuple[str, ...] = REQUIREMENT_FILES
+) -> list[dict[str, str]]:
     """Extrae dependencias directas desde archivos requirements con parsing conservador."""
     components: list[dict[str, str]] = []
     seen: set[str] = set()
@@ -38,7 +43,10 @@ def parse_requirements(root: Path, filenames: tuple[str, ...] = REQUIREMENT_FILE
             line = raw_line.strip()
             if not line or line.startswith("#") or line.startswith("-"):
                 continue
-            match = re.match(r"(?P<name>[A-Za-z0-9_.-]+)\s*(?P<op>==|>=|<=|~=|>|<)?\s*(?P<version>[^;#\s]+)?", line)
+            match = re.match(
+                r"(?P<name>[A-Za-z0-9_.-]+)\s*(?P<op>==|>=|<=|~=|>|<)?\s*(?P<version>[^;#\s]+)?",
+                line,
+            )
             if not match:
                 continue
             name = match.group("name")
@@ -95,7 +103,12 @@ def build_project_sbom(root: Path) -> dict[str, Any]:
             "component": {"type": "application", "name": "skillchain-mcp-guard"},
         },
         "components": [
-            {"type": "library", "name": item["name"], "version": item["version"], "scope": "required"}
+            {
+                "type": "library",
+                "name": item["name"],
+                "version": item["version"],
+                "scope": "required",
+            }
             for item in components
         ],
         "packages": components,
@@ -120,7 +133,11 @@ def build_image_sbom(root: Path) -> dict[str, Any]:
             "component": {"type": "container", "name": "python-microservice:dev"},
         },
         "components": [
-            {"type": "container" if item["name"] == "base-image" else "application", "name": item["name"], "version": item["version"]}
+            {
+                "type": "container" if item["name"] == "base-image" else "application",
+                "name": item["name"],
+                "version": item["version"],
+            }
             for item in packages
         ],
         "packages": packages,
@@ -284,17 +301,18 @@ def generate_local_evidence(root: Path | None = None) -> dict[str, Any]:
         if should_preserve_json(alias_path):
             preserved.append(alias)
             continue
-        payload = read_json_report(base / source)
-        if payload is not None:
-            write_json_report(payload, Path(alias), root=base)
+
+        alias_payload = read_json_report(base / source)
+        if alias_payload is not None:
+            write_json_report(alias_payload, Path(alias), root=base)
             written.append(alias)
 
     fallback_present = bool(written)
     for relative_path in outputs:
-        payload = read_json_report(base / relative_path)
-        if isinstance(payload, dict) and (
-            payload.get("generated_by") == LOCAL_EVIDENCE_GENERATOR
-            or payload.get("tool_mode") == "stdlib-fallback"
+        existing_payload = read_json_report(base / relative_path)
+        if isinstance(existing_payload, dict) and (
+            existing_payload.get("generated_by") == LOCAL_EVIDENCE_GENERATOR
+            or existing_payload.get("tool_mode") == "stdlib-fallback"
         ):
             fallback_present = True
             break
@@ -315,8 +333,12 @@ def generate_local_evidence(root: Path | None = None) -> dict[str, Any]:
 
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser CLI para evidencias locales."""
-    parser = argparse.ArgumentParser(description="Generate local DevSecOps evidence without external tools.")
-    parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a inspeccionar.")
+    parser = argparse.ArgumentParser(
+        description="Generate local DevSecOps evidence without external tools."
+    )
+    parser.add_argument(
+        "--root", default=str(REPO_ROOT), help="Raíz del repositorio a inspeccionar."
+    )
     parser.add_argument("--json", action="store_true", help="Imprime JSON legible.")
     return parser
 

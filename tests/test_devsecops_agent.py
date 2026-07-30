@@ -3,7 +3,12 @@ from pathlib import Path
 
 import pytest
 
-from devsecops_agent.artifacts import list_artifacts, read_artifact_text, read_named_artifact_text, summarize_security_findings
+from devsecops_agent.artifacts import (
+    list_artifacts,
+    read_artifact_text,
+    read_named_artifact_text,
+    summarize_security_findings,
+)
 from devsecops_agent.commands import run_make_target
 
 

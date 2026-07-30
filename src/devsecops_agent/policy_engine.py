@@ -10,7 +10,6 @@ from pathlib import Path
 from typing import Any, Literal
 
 from .artifacts import read_json_if_exists
-from .report_writer import write_json_report
 from .config import (
     LEGACY_PIP_AUDIT_REPORT_PATH,
     MCP_AUDIT_REPORT_PATH,
@@ -21,14 +20,20 @@ from .config import (
     REQUIRED_POLICY_REPORTS,
     SKILL_REPORT_PATH,
 )
+from .image_vulnerability_policy import (
+    NORMALIZED_REPORT_PATH,
+    evaluate_image_vulnerability_policy,
+)
+from .report_writer import write_json_report
 from .security_models import RiskLevel, ScanStatus, SecurityFinding
 from .tool_evidence import verify_tool_exit_record
-
 
 PASSING_STATUSES: frozenset[str] = frozenset({ScanStatus.PASS.value})
 WARNING_STATUSES: frozenset[str] = frozenset({ScanStatus.WARN.value})
 FAILING_STATUSES: frozenset[str] = frozenset({ScanStatus.FAIL.value})
-BLOCKING_EVIDENCE_FILES: frozenset[str] = frozenset({"artifacts/sbom-project.json", "artifacts/sbom-image.json"})
+BLOCKING_EVIDENCE_FILES: frozenset[str] = frozenset(
+    {"artifacts/sbom-project.json", "artifacts/sbom-image.json"}
+)
 STRICT_POLICY_ENV = "STRICT_POLICY"
 STRICT_POLICY_TRUE_VALUES: frozenset[str] = frozenset({"1", "true", "yes", "on"})
 LOCAL_EVIDENCE_GENERATOR = "skillchain-local-evidence"
@@ -37,7 +42,10 @@ STRICT_REQUIRED_EVIDENCE_FILES: frozenset[str] = frozenset(RECOMMENDED_EVIDENCE_
 SCANNER_EXIT_EVIDENCE: dict[str, tuple[str, str]] = {
     "bandit": ("artifacts/bandit.json", ".evidence/bandit-exit.json"),
     "semgrep": ("artifacts/semgrep.json", ".evidence/semgrep-exit.json"),
-    "pip-audit-runtime": ("artifacts/pip-audit-runtime.json", ".evidence/pip-audit-runtime-exit.json"),
+    "pip-audit-runtime": (
+        "artifacts/pip-audit-runtime.json",
+        ".evidence/pip-audit-runtime-exit.json",
+    ),
     "pip-audit-dev": ("artifacts/pip-audit-dev.json", ".evidence/pip-audit-dev-exit.json"),
     "pip-audit-mcp": ("artifacts/pip-audit-mcp.json", ".evidence/pip-audit-mcp-exit.json"),
     "gitleaks": ("artifacts/gitleaks.sarif", ".evidence/gitleaks-exit.json"),
@@ -141,7 +149,9 @@ def sarif_result_severity(result: dict[str, Any]) -> str:
     if level == "warning":
         return "MEDIUM"
 
-    properties = result.get("properties", {}) if isinstance(result.get("properties", {}), dict) else {}
+    properties = (
+        result.get("properties", {}) if isinstance(result.get("properties", {}), dict) else {}
+    )
     for key in ("severity", "Security-Severity", "security-severity"):
         severity = normalize_severity(properties.get(key))
         if severity:
@@ -301,7 +311,9 @@ def evaluate_finding_counts(
         )
 
 
-def evaluate_recommended_evidence(root: Path, findings: list[SecurityFinding], mode: PolicyMode) -> dict[str, Any]:
+def evaluate_recommended_evidence(
+    root: Path, findings: list[SecurityFinding], mode: PolicyMode
+) -> dict[str, Any]:
     """Calcula completitud de evidencias y bloquea faltantes críticos/estrictos."""
     expected = list(REQUIRED_POLICY_REPORTS) + list(RECOMMENDED_EVIDENCE_FILES)
     existing = [relative_path for relative_path in expected if (root / relative_path).is_file()]
@@ -328,13 +340,19 @@ def evaluate_recommended_evidence(root: Path, findings: list[SecurityFinding], m
     }
 
 
-def evaluate_scanner_exit_evidence(root: Path, findings: list[SecurityFinding], mode: PolicyMode) -> dict[str, Any]:
+def evaluate_scanner_exit_evidence(
+    root: Path, findings: list[SecurityFinding], mode: PolicyMode
+) -> dict[str, Any]:
     """Valida exit codes, frescura y hash de artefactos producidos por scanners reales."""
     rows: dict[str, Any] = {}
     for scanner, (artifact_path, evidence_path) in SCANNER_EXIT_EVIDENCE.items():
         evidence = read_json_if_exists(root / evidence_path)
         if not isinstance(evidence, dict):
-            rows[scanner] = {"status": "missing", "evidence": evidence_path, "artifact": artifact_path}
+            rows[scanner] = {
+                "status": "missing",
+                "evidence": evidence_path,
+                "artifact": artifact_path,
+            }
             if mode in {"ci", "strict"}:
                 add_finding(
                     findings,
@@ -384,14 +402,18 @@ def evaluate_scanner_exit_evidence(root: Path, findings: list[SecurityFinding], 
     return rows
 
 
-def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], mode: PolicyMode) -> None:
+def evaluate_security_tool_outputs(
+    root: Path, findings: list[SecurityFinding], mode: PolicyMode
+) -> None:
     """Bloquea hallazgos críticos conocidos en reportes SAST, SCA, imagen y DAST."""
     artifacts = root / "artifacts"
 
     bandit = read_json_if_exists(artifacts / "bandit.json")
     add_fallback_finding(findings, bandit, "artifacts/bandit.json", "bandit", mode)
     if isinstance(bandit, dict):
-        for result in bandit.get("results", []) if isinstance(bandit.get("results", []), list) else []:
+        for result in (
+            bandit.get("results", []) if isinstance(bandit.get("results", []), list) else []
+        ):
             if not isinstance(result, dict):
                 continue
             severity = normalize_severity(result.get("issue_severity", ""))
@@ -409,7 +431,9 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
     semgrep = read_json_if_exists(artifacts / "semgrep.json")
     add_fallback_finding(findings, semgrep, "artifacts/semgrep.json", "semgrep", mode)
     if isinstance(semgrep, dict):
-        for result in semgrep.get("results", []) if isinstance(semgrep.get("results", []), list) else []:
+        for result in (
+            semgrep.get("results", []) if isinstance(semgrep.get("results", []), list) else []
+        ):
             if not isinstance(result, dict):
                 continue
             extra = result.get("extra", {}) if isinstance(result.get("extra", {}), dict) else {}
@@ -440,7 +464,11 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
         add_fallback_finding(findings, pip_audit, relative_path, "pip-audit", mode)
         if not isinstance(pip_audit, dict):
             continue
-        for dependency in pip_audit.get("dependencies", []) if isinstance(pip_audit.get("dependencies", []), list) else []:
+        for dependency in (
+            pip_audit.get("dependencies", [])
+            if isinstance(pip_audit.get("dependencies", []), list)
+            else []
+        ):
             if not isinstance(dependency, dict):
                 continue
             vulns = dependency.get("vulns", [])
@@ -455,18 +483,49 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
                     evidence=f"{relative_path}:{dependency.get('name', 'unknown')}",
                 )
 
+    normalized_image_report_available = (
+        root / NORMALIZED_REPORT_PATH
+    ).is_file()
+
     for scanner_name, relative_path, rule_id, message in (
-        ("grype", "artifacts/grype-image.sarif", "POLICY010", "El escaneo de imagen reporta un resultado high/critical."),
-        ("trivy", "artifacts/trivy-image.sarif", "POLICY014", "Trivy reporta un resultado high/critical en la imagen."),
-        ("gitleaks", "artifacts/gitleaks.sarif", "POLICY015", "Gitleaks reporta una exposición de secreto."),
+        (
+            "grype",
+            "artifacts/grype-image.sarif",
+            "POLICY010",
+            "El escaneo de imagen reporta un resultado high/critical.",
+        ),
+        (
+            "trivy",
+            "artifacts/trivy-image.sarif",
+            "POLICY014",
+            "Trivy reporta un resultado high/critical en la imagen.",
+        ),
+        (
+            "gitleaks",
+            "artifacts/gitleaks.sarif",
+            "POLICY015",
+            "Gitleaks reporta una exposición de secreto.",
+        ),
     ):
+        if (
+            normalized_image_report_available
+            and scanner_name in {"grype", "trivy"}
+        ):
+            continue
+
         sarif_report = read_json_if_exists(root / relative_path)
         add_fallback_finding(findings, sarif_report, relative_path, scanner_name, mode)
         if isinstance(sarif_report, dict):
-            for run in sarif_report.get("runs", []) if isinstance(sarif_report.get("runs", []), list) else []:
+            for run in (
+                sarif_report.get("runs", [])
+                if isinstance(sarif_report.get("runs", []), list)
+                else []
+            ):
                 if not isinstance(run, dict):
                     continue
-                for result in run.get("results", []) if isinstance(run.get("results", []), list) else []:
+                for result in (
+                    run.get("results", []) if isinstance(run.get("results", []), list) else []
+                ):
                     if not isinstance(result, dict):
                         continue
                     severity = sarif_result_severity(result)
@@ -474,7 +533,9 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
                         add_finding(
                             findings,
                             rule_id,
-                            RiskLevel.HIGH if scanner_name == "gitleaks" else external_tool_severity(),
+                            RiskLevel.HIGH
+                            if scanner_name == "gitleaks"
+                            else external_tool_severity(),
                             message,
                             scanner_name,
                             "Corrige el hallazgo o documenta una excepción aprobada antes de permitir release.",
@@ -484,11 +545,12 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
     scorecard = read_json_if_exists(artifacts / "scorecard.json")
     add_fallback_finding(findings, scorecard, "artifacts/scorecard.json", "openssf-scorecard", mode)
     if isinstance(scorecard, dict):
-        score = scorecard.get("score")
+        raw_score = scorecard.get("score")
         try:
-            score_value = float(score)
+            score_value = float(raw_score if raw_score is not None else 0.0)
         except (TypeError, ValueError):
             score_value = None
+
         if score_value is not None and score_value < 7.0:
             add_finding(
                 findings,
@@ -518,7 +580,9 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
                         "OWASP ZAP reporta una alerta high/critical.",
                         "zap",
                         "Corrige el hallazgo DAST o documenta una excepción aprobada antes de permitir merge.",
-                        evidence=str(alert.get("pluginid", alert.get("pluginId", alert.get("alert", "zap")))),
+                        evidence=str(
+                            alert.get("pluginid", alert.get("pluginId", alert.get("alert", "zap")))
+                        ),
                     )
                 elif severity == "MEDIUM":
                     add_finding(
@@ -528,8 +592,90 @@ def evaluate_security_tool_outputs(root: Path, findings: list[SecurityFinding], 
                         "OWASP ZAP reporta una alerta medium.",
                         "zap",
                         "Revisa el hallazgo DAST y documenta la decisión de mitigación.",
-                        evidence=str(alert.get("pluginid", alert.get("pluginId", alert.get("alert", "zap")))),
+                        evidence=str(
+                            alert.get("pluginid", alert.get("pluginId", alert.get("alert", "zap")))
+                        ),
                     )
+
+
+def evaluate_normalized_image_policy(
+    root: Path,
+    findings: list[SecurityFinding],
+    mode: PolicyMode,
+) -> dict[str, Any]:
+    """Aplica el gate sobre el inventario normalizado de la imagen."""
+    image_policy = evaluate_image_vulnerability_policy(root)
+
+    if image_policy["status"] != "available":
+        severity = RiskLevel.LOW if mode == "demo" else RiskLevel.HIGH
+
+        add_finding(
+            findings,
+            "POLICY022",
+            severity,
+            (
+                "No existe el inventario normalizado de "
+                "vulnerabilidades de la imagen."
+            ),
+            "container-image",
+            (
+                "Ejecuta scan-image para generar los JSON nativos "
+                "y el reporte normalizado."
+            ),
+            evidence=NORMALIZED_REPORT_PATH,
+        )
+
+        return image_policy
+
+    for vulnerability in image_policy["actionable"]:
+        stable_versions = ", ".join(
+            vulnerability["stable_fixed_versions"]
+        )
+
+        add_finding(
+            findings,
+            "POLICY023",
+            RiskLevel.HIGH,
+            (
+                "La imagen contiene una vulnerabilidad con "
+                "corrección estable para la línea utilizada."
+            ),
+            "container-image",
+            (
+                "Actualiza el componente o la imagen base a una "
+                f"versión corregida: {stable_versions}."
+            ),
+            evidence=vulnerability["identity"],
+        )
+
+    review_required = image_policy["review_required"]
+
+    if review_required:
+        severity = (
+            RiskLevel.HIGH
+            if mode == "strict"
+            else RiskLevel.MEDIUM
+        )
+
+        add_finding(
+            findings,
+            "POLICY024",
+            severity,
+            (
+                f"La imagen contiene {len(review_required)} "
+                "vulnerabilidades upstream sin una corrección "
+                "estable aplicable a la línea utilizada."
+            ),
+            "container-image",
+            (
+                "Mantén las CVE visibles, revisa actualizaciones "
+                "del proveedor y formaliza la aceptación antes "
+                "de una release estricta."
+            ),
+            evidence=NORMALIZED_REPORT_PATH,
+        )
+
+    return image_policy
 
 
 def flatten_evidence_score(evidence: dict[str, Any]) -> float:
@@ -556,7 +702,6 @@ def determine_policy_status(findings: Sequence[SecurityFinding]) -> ScanStatus:
     if RiskLevel.MEDIUM.value in severities or RiskLevel.LOW.value in severities:
         return ScanStatus.WARN
     return ScanStatus.PASS
-
 
 
 def evaluate_run_id_consistency(
@@ -620,6 +765,9 @@ def evaluate_policy(root: Path | None = None, mode: str | None = None) -> dict[s
     )
 
     evaluate_security_tool_outputs(base, findings, policy_mode)
+    image_vulnerability_policy = evaluate_normalized_image_policy(
+        base, findings, policy_mode
+    )
     scanner_exit_evidence = evaluate_scanner_exit_evidence(base, findings, policy_mode)
     evidence = evaluate_recommended_evidence(base, findings, policy_mode)
     counts = count_findings(findings)
@@ -635,6 +783,7 @@ def evaluate_policy(root: Path | None = None, mode: str | None = None) -> dict[s
         "evidence_completeness": evidence,
         "evidence_completeness_score": flatten_evidence_score(evidence),
         "scanner_exit_evidence": scanner_exit_evidence,
+        "image_vulnerability_policy": image_vulnerability_policy,
         "blocking_issues": counts["high_or_critical"],
         "warnings": counts.get("medium", 0) + counts.get("low", 0),
         "finding_counts": counts,
@@ -647,20 +796,43 @@ def evaluate_policy(root: Path | None = None, mode: str | None = None) -> dict[s
     }
 
 
-def write_policy_report(report: dict[str, Any], output_path: Path, root: Path | None = None) -> Path:
+def write_policy_report(
+    report: dict[str, Any], output_path: Path, root: Path | None = None
+) -> Path:
     """Escribe la decisión de policy gate en JSON."""
     return write_json_report(report, output_path, root=root)
 
 
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser CLI del policy engine."""
-    parser = argparse.ArgumentParser(description="Evalúa evidencia DevSecOps y aplica el policy gate.")
+    parser = argparse.ArgumentParser(
+        description="Evalúa evidencia DevSecOps y aplica el policy gate."
+    )
     parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a evaluar.")
-    parser.add_argument("--output", default=POLICY_REPORT_PATH, help="Ruta de salida del reporte JSON.")
-    parser.add_argument("--mode", choices=sorted(VALID_POLICY_MODES), default="strict", help="Perfil de política: demo, ci o strict.")
-    parser.add_argument("--fail-on-fail", action="store_true", help="Compatibilidad: strict/ci ya fallan por defecto cuando status es FAIL.")
-    parser.add_argument("--no-fail-on-fail", action="store_true", help="Modo reporte: escribe JSON y devuelve 0 aunque status sea FAIL.")
-    parser.add_argument("--fail-on-warn", action="store_true", help="Devuelve estado 3 cuando la política queda en WARN.")
+    parser.add_argument(
+        "--output", default=POLICY_REPORT_PATH, help="Ruta de salida del reporte JSON."
+    )
+    parser.add_argument(
+        "--mode",
+        choices=sorted(VALID_POLICY_MODES),
+        default="strict",
+        help="Perfil de política: demo, ci o strict.",
+    )
+    parser.add_argument(
+        "--fail-on-fail",
+        action="store_true",
+        help="Compatibilidad: strict/ci ya fallan por defecto cuando status es FAIL.",
+    )
+    parser.add_argument(
+        "--no-fail-on-fail",
+        action="store_true",
+        help="Modo reporte: escribe JSON y devuelve 0 aunque status sea FAIL.",
+    )
+    parser.add_argument(
+        "--fail-on-warn",
+        action="store_true",
+        help="Devuelve estado 3 cuando la política queda en WARN.",
+    )
     return parser
 
 

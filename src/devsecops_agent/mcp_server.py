@@ -5,23 +5,29 @@ from typing import Any
 
 from mcp.server.fastmcp import FastMCP
 
-from .artifacts import list_artifacts, read_named_artifact_text, repo_root, summarize_security_findings
+from .artifacts import (
+    list_artifacts,
+    read_named_artifact_text,
+    repo_root,
+    summarize_security_findings,
+)
 from .commands import ALLOWED_MAKE_TARGETS, run_make_target
 from .dashboard import build_product_status, write_dashboard_html, write_product_status
-from .evidence_pack import create_evidence_pack
 from .evaluation_harness import run_controlled_evaluation
+from .evidence_pack import create_evidence_pack
 from .mcp_auditor import audit_mcp_server as run_mcp_audit
 from .policy_engine import evaluate_policy as run_policy_evaluation
 from .rbac import authorize_tool_invocation
 from .skill_scanner import scan_skills
-
 
 mcp = FastMCP("skillchain-mcp-guard")
 
 
 def require_mcp_tool(tool_name: str, target: str | None = None) -> dict[str, Any]:
     """Autoriza una tool MCP usando solo el rol efectivo del entorno controlado."""
-    return authorize_tool_invocation(role=None, tool_name=tool_name, target=target, root=repo_root())
+    return authorize_tool_invocation(
+        role=None, tool_name=tool_name, target=target, root=repo_root()
+    )
 
 
 def read_repo_text(relative_path: str, fallback: str) -> str:

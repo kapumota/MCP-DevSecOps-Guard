@@ -3,9 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from devsecops_agent.cli import generate_product_reports, main as cli_main
+from devsecops_agent.cli import generate_product_reports
+from devsecops_agent.cli import main as cli_main
 from devsecops_agent.config import DASHBOARD_HTML_PATH, PRODUCT_STATUS_PATH
-from devsecops_agent.dashboard import REALISTIC_SCORE_CEILING, build_product_status, render_dashboard_html, write_dashboard_html
+from devsecops_agent.dashboard import (
+    REALISTIC_SCORE_CEILING,
+    build_product_status,
+    render_dashboard_html,
+    write_dashboard_html,
+)
 
 
 def write_json(path: Path, payload: dict) -> None:
@@ -16,11 +22,18 @@ def write_json(path: Path, payload: dict) -> None:
 def prepare_minimal_reports(root: Path) -> None:
     write_json(
         root / "artifacts/skill-scan-report.json",
-        {"status": "PASS", "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0}},
+        {
+            "status": "PASS",
+            "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0},
+        },
     )
     write_json(
         root / "artifacts/mcp-audit-report.json",
-        {"status": "PASS", "overall_risk": "low", "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0}},
+        {
+            "status": "PASS",
+            "overall_risk": "low",
+            "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0},
+        },
     )
     write_json(
         root / "artifacts/agent-eval-report.json",
@@ -40,7 +53,10 @@ def prepare_minimal_reports(root: Path) -> None:
         {
             "status": "WARN",
             "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 1, "total": 1},
-            "evidence_completeness": {"score": 0.5, "missing": ["artifacts/sbom-syft-project.json"]},
+            "evidence_completeness": {
+                "score": 0.5,
+                "missing": ["artifacts/sbom-syft-project.json"],
+            },
         },
     )
 
@@ -59,15 +75,21 @@ def test_build_product_status_from_existing_reports(tmp_path: Path) -> None:
     assert len(report["control_coverage"]) == 4
 
 
-
 def test_clean_reports_do_not_show_perfect_security_score(tmp_path: Path) -> None:
     write_json(
         tmp_path / "artifacts/skill-scan-report.json",
-        {"status": "PASS", "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0}},
+        {
+            "status": "PASS",
+            "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0},
+        },
     )
     write_json(
         tmp_path / "artifacts/mcp-audit-report.json",
-        {"status": "PASS", "overall_risk": "low", "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0}},
+        {
+            "status": "PASS",
+            "overall_risk": "low",
+            "finding_counts": {"high_or_critical": 0, "medium": 0, "low": 0, "total": 0},
+        },
     )
     write_json(
         tmp_path / "artifacts/agent-eval-report.json",
@@ -97,6 +119,7 @@ def test_clean_reports_do_not_show_perfect_security_score(tmp_path: Path) -> Non
     assert report["security_score"] == REALISTIC_SCORE_CEILING
     assert report["security_score"] < 100
     assert "seguridad absoluta" in report["executive_summary"]["score_note"]
+
 
 def test_dashboard_html_is_self_contained(tmp_path: Path) -> None:
     prepare_minimal_reports(tmp_path)

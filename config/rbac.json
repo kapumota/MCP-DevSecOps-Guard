@@ -78,6 +78,7 @@
         "run_devsecops_check": {
           "allowed_targets": [
             "unit",
+            "unit-sandbox",
             "lint",
             "type-check",
             "coverage",

@@ -61,19 +61,46 @@ def authorize_tool_invocation(
     if rule is None:
         if policy.get("deny_by_default", True):
             raise RbacError(f"Invocación denegada por RBAC: rol={effective_role}, tool={tool_name}")
-        return {"allowed": True, "role": effective_role, "tool": tool_name, "reason": "allow_by_default"}
+        return {
+            "allowed": True,
+            "role": effective_role,
+            "tool": tool_name,
+            "reason": "allow_by_default",
+        }
 
     if rule.get("allowed") is True and target is None:
-        return {"allowed": True, "role": effective_role, "tool": tool_name, "reason": "tool_allowed"}
+        return {
+            "allowed": True,
+            "role": effective_role,
+            "tool": tool_name,
+            "reason": "tool_allowed",
+        }
 
     allowed_targets = rule.get("allowed_targets")
-    if target is not None and isinstance(allowed_targets, list) and target in {str(item) for item in allowed_targets}:
-        return {"allowed": True, "role": effective_role, "tool": tool_name, "target": target, "reason": "target_allowed"}
+    if (
+        target is not None
+        and isinstance(allowed_targets, list)
+        and target in {str(item) for item in allowed_targets}
+    ):
+        return {
+            "allowed": True,
+            "role": effective_role,
+            "tool": tool_name,
+            "target": target,
+            "reason": "target_allowed",
+        }
 
     if rule.get("allowed") is True and isinstance(allowed_targets, list) and target is None:
-        return {"allowed": True, "role": effective_role, "tool": tool_name, "reason": "tool_allowed"}
+        return {
+            "allowed": True,
+            "role": effective_role,
+            "tool": tool_name,
+            "reason": "tool_allowed",
+        }
 
-    raise RbacError(f"Invocación denegada por RBAC: rol={effective_role}, tool={tool_name}, target={target}")
+    raise RbacError(
+        f"Invocación denegada por RBAC: rol={effective_role}, tool={tool_name}, target={target}"
+    )
 
 
 def build_parser() -> argparse.ArgumentParser:

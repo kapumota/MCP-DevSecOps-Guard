@@ -10,11 +10,10 @@ from pathlib import Path
 from typing import Any
 
 from .commands import ALLOWED_MAKE_TARGETS
-from .config import REQUIRED_SKILL_SECTIONS, REPO_ROOT, SKILL_REPORT_PATH, SKILLS_DIR
+from .config import REPO_ROOT, REQUIRED_SKILL_SECTIONS, SKILL_REPORT_PATH, SKILLS_DIR
 from .report_writer import write_json_report
 from .security_models import RiskLevel, ScanStatus, SkillFinding, SkillScanResult
 from .text_security import normalize_security_text, suspicious_unicode_delta
-
 
 DANGEROUS_PATTERNS: tuple[tuple[str, str, str], ...] = (
     (
@@ -65,13 +64,27 @@ DANGEROUS_PATTERNS: tuple[tuple[str, str, str], ...] = (
 )
 
 AMBIGUOUS_PATTERNS: tuple[tuple[str, str], ...] = (
-    (r"\b(as needed|etc\.|and so on|do the necessary|fix everything)\b", "Reemplaza instrucciones vagas por pasos observables y criterios verificables."),
-    (r"\b(use your judgment|be creative|whatever works)\b", "Define límites operativos explícitos para que el agente no improvise fuera del alcance."),
+    (
+        r"\b(as needed|etc\.|and so on|do the necessary|fix everything)\b",
+        "Reemplaza instrucciones vagas por pasos observables y criterios verificables.",
+    ),
+    (
+        r"\b(use your judgment|be creative|whatever works)\b",
+        "Define límites operativos explícitos para que el agente no improvise fuera del alcance.",
+    ),
 )
 
 UNNECESSARY_ACCESS_PATTERNS: tuple[tuple[str, str, str], ...] = (
-    (r"\b(internet|external network|public web|remote server)\b", "network_access", "Justifica el acceso de red o limita el skill a evidencias locales."),
-    (r"\b(entire filesystem|whole disk|all files|home directory)\b", "broad_filesystem_access", "Limita el acceso a artifacts/, .evidence/ o archivos declarados."),
+    (
+        r"\b(internet|external network|public web|remote server)\b",
+        "network_access",
+        "Justifica el acceso de red o limita el skill a evidencias locales.",
+    ),
+    (
+        r"\b(entire filesystem|whole disk|all files|home directory)\b",
+        "broad_filesystem_access",
+        "Limita el acceso a artifacts/, .evidence/ o archivos declarados.",
+    ),
 )
 
 MAKE_COMMAND_PATTERN = re.compile(r"`make\s+([A-Za-z0-9_.:-]+)(?:\s|`)")
@@ -104,14 +117,13 @@ def parse_front_matter(text: str) -> dict[str, str]:
         if ":" not in line:
             continue
         key, value = line.split(":", 1)
-        fields[key.strip().lower()] = value.strip().strip('"\'')
+        fields[key.strip().lower()] = value.strip().strip("\"'")
     return fields
 
 
 def iter_lines(text: str) -> Iterable[tuple[int, str]]:
     """Itera líneas con numeración humana desde 1."""
-    for line_number, line in enumerate(text.splitlines(), start=1):
-        yield line_number, line
+    yield from enumerate(text.splitlines(), start=1)
 
 
 def add_finding(
@@ -136,7 +148,9 @@ def add_finding(
     )
 
 
-def scan_front_matter(text: str, relative_path: str, findings: list[SkillFinding]) -> dict[str, str]:
+def scan_front_matter(
+    text: str, relative_path: str, findings: list[SkillFinding]
+) -> dict[str, str]:
     """Valida metadata mínima del skill."""
     metadata = parse_front_matter(text)
     if not metadata:
@@ -266,7 +280,10 @@ def scan_dangerous_language(text: str, relative_path: str, findings: list[SkillF
 
 def scan_ambiguous_language(text: str, relative_path: str, findings: list[SkillFinding]) -> None:
     """Detecta instrucciones vagas que dificultan aceptación y revisión segura."""
-    compiled_patterns = [(re.compile(pattern, re.IGNORECASE), recommendation) for pattern, recommendation in AMBIGUOUS_PATTERNS]
+    compiled_patterns = [
+        (re.compile(pattern, re.IGNORECASE), recommendation)
+        for pattern, recommendation in AMBIGUOUS_PATTERNS
+    ]
     for line_number, line in iter_lines(text):
         for pattern, recommendation in compiled_patterns:
             if pattern.search(line):
@@ -372,7 +389,9 @@ def scan_skill_file(path: Path, root: Path | None = None) -> SkillScanResult:
     )
 
 
-def summarize_skill_scan(results: Sequence[SkillScanResult], root: Path | None = None) -> dict[str, Any]:
+def summarize_skill_scan(
+    results: Sequence[SkillScanResult], root: Path | None = None
+) -> dict[str, Any]:
     """Construye un resumen agregado para todos los skills auditados."""
     base = (root or REPO_ROOT).resolve()
     high_count = sum(
@@ -382,14 +401,22 @@ def summarize_skill_scan(results: Sequence[SkillScanResult], root: Path | None =
         if finding.severity in {RiskLevel.HIGH.value, RiskLevel.CRITICAL.value}
     )
     medium_count = sum(
-        1 for result in results for finding in result.findings if finding.severity == RiskLevel.MEDIUM.value
+        1
+        for result in results
+        for finding in result.findings
+        if finding.severity == RiskLevel.MEDIUM.value
     )
     low_count = sum(
-        1 for result in results for finding in result.findings if finding.severity == RiskLevel.LOW.value
+        1
+        for result in results
+        for finding in result.findings
+        if finding.severity == RiskLevel.LOW.value
     )
 
     status = ScanStatus.FAIL if high_count else ScanStatus.WARN if medium_count else ScanStatus.PASS
-    average_score = round(sum(result.score for result in results) / len(results), 2) if results else 0.0
+    average_score = (
+        round(sum(result.score for result in results) / len(results), 2) if results else 0.0
+    )
 
     return {
         "scanner": "skillchain-mcp-guard-skill-scanner",
@@ -422,10 +449,16 @@ def write_scan_report(report: dict[str, Any], output_path: Path, root: Path | No
 
 def build_parser() -> argparse.ArgumentParser:
     """Construye el parser CLI del scanner."""
-    parser = argparse.ArgumentParser(description="Audit agent skills for structure and supply-chain risk.")
+    parser = argparse.ArgumentParser(
+        description="Audit agent skills for structure and supply-chain risk."
+    )
     parser.add_argument("--root", default=str(REPO_ROOT), help="Raíz del repositorio a escanear.")
-    parser.add_argument("--skills-dir", default=SKILLS_DIR, help="Directory containing skill folders.")
-    parser.add_argument("--output", default=SKILL_REPORT_PATH, help="Ruta de salida del reporte JSON.")
+    parser.add_argument(
+        "--skills-dir", default=SKILLS_DIR, help="Directory containing skill folders."
+    )
+    parser.add_argument(
+        "--output", default=SKILL_REPORT_PATH, help="Ruta de salida del reporte JSON."
+    )
     parser.add_argument(
         "--fail-on-high",
         action="store_true",

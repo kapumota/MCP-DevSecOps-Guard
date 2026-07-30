@@ -1,5 +1,5 @@
-from pathlib import Path
 import json
+from pathlib import Path
 
 from devsecops_agent.skill_scanner import scan_skill_file, scan_skills, write_scan_report
 

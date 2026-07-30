@@ -14,5 +14,10 @@ def test_controlled_evaluation_runs_realistic_builtin_cases(tmp_path: Path):
     assert report["metrics"]["f1"] >= 0.99
     assert report["metrics"]["false_positive"] == 0
     assert report["metrics"]["false_negative"] == 0
-    assert report["metrics"]["attack_block_rate_by_category"]["unicode_homoglyphs"]["attack_block_rate"] == 1.0
+    assert (
+        report["metrics"]["attack_block_rate_by_category"]["unicode_homoglyphs"][
+            "attack_block_rate"
+        ]
+        == 1.0
+    )
     assert "known_limitations" in report

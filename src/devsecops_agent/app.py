@@ -8,7 +8,6 @@ import socketserver
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from typing import Any
 
-
 DEFAULT_PORT = 8000
 SERVICE_NAME = os.environ.get("SERVICE_NAME", "python-microservice")
 
@@ -52,7 +51,7 @@ class Handler(BaseHTTPRequestHandler):
     ) -> None:
         """Envía una respuesta HTTP con longitud y tipo de contenido explícitos."""
         # El servidor acepta payload binario o diccionarios serializables a JSON.
-        if isinstance(payload, (bytes, bytearray)):
+        if isinstance(payload, bytes | bytearray):
             body = bytes(payload)
         else:
             body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
